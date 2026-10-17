@@ -1,0 +1,43 @@
+"""Newer releases on GitHub, and how to install one."""
+
+import json
+import re
+import shutil
+import urllib.request
+
+REPO = "SaviPBC/savi-notes"
+INSTALL_SOURCE = "git+https://github.com/%s" % REPO
+
+
+def latest():
+  """(version, required) of the newest release, or None when it can't be read."""
+  request = urllib.request.Request(
+    "https://api.github.com/repos/%s/releases/latest" % REPO,
+    headers={"Accept": "application/vnd.github+json", "User-Agent": "Savi Notes"})
+  try:
+    with urllib.request.urlopen(request, timeout=6) as r:
+      data = json.load(r)
+  except Exception:
+    return None
+  tag = str(data.get("tag_name") or "").lstrip("v")
+  if not tag:
+    return None
+  # A release whose notes say "required update" loses the Later button.
+  required = "required update" in str(data.get("body") or "").lower()
+  return tag, required
+
+
+def parts(version):
+  return tuple(int(p) for p in re.findall(r"\d+", str(version))[:3])
+
+
+def is_newer(candidate, current):
+  return parts(candidate) > parts(current)
+
+
+def install_command(version):
+  """The uv command that installs the given release, or None without uv."""
+  uv = shutil.which("uv")
+  if not uv:
+    return None
+  return [uv, "tool", "install", "--force", "--reinstall", "%s@v%s" % (INSTALL_SOURCE, version)]
