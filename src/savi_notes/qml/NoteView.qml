@@ -78,6 +78,9 @@ FocusScope {
     }
   }
 
+  // Invisible lines around the reader's text; see its clip.
+  readonly property string edge: "<p style='margin:0; font-size:4px'>&nbsp;</p>"
+
   function loadBody() {
     editor.text = pane.body
     render()
@@ -670,49 +673,55 @@ FocusScope {
       Item {
         id: body
         width: parent.width
-        // Clipping makes this the reader's viewport. Without it the viewport is the
-        // Flickable, and past 10,000 characters of HTML (any sizable table) Qt draws only
-        // what's on screen and loses blocks above a table when scrolled back to them.
-        clip: true
         height: pane.editing ? Math.max(editor.contentHeight, Style.space(240)) : Math.max(reader.contentHeight, Style.space(120))
 
-        TextEdit {
-          id: reader
-          visible: !pane.editing
+        // The reader's viewport: all of it, so Qt doesn't cull long notes (it loses text above
+        // tables), and just inside view.edge, or Qt redraws it all on every scroll step.
+        Item {
+          y: 1
           width: parent.width
-          readOnly: true
-          selectByMouse: true
-          textFormat: TextEdit.RichText
-          wrapMode: TextEdit.Wrap
-          text: view.rendered
-          color: Colors.foreground
-          selectionColor: Util.alpha(Colors.accent, 0.35)
-          selectedTextColor: Colors.foreground
-          font.family: view.sans
-          font.pixelSize: view.bodySize
-          onLinkActivated: function(link) { app.followLink(link, view.pane) }
+          height: reader.height - 2
+          clip: true
 
-          Keys.onPressed: function(event) {
-            if (app.shortcut(event)) { event.accepted = true; return }
-            if (event.modifiers & (Qt.ControlModifier | Qt.AltModifier)) return
-            if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) view.focusEditor()
-            else if (event.key === Qt.Key_Down || event.key === Qt.Key_J) page.contentY = Math.min(page.contentHeight - page.height, page.contentY + Style.space(60))
-            else if (event.key === Qt.Key_Up || event.key === Qt.Key_K) page.contentY = Math.max(0, page.contentY - Style.space(60))
-            else if (event.key === Qt.Key_Slash) app.focusSearchFromView()
-            else return
-            event.accepted = true
-          }
+          TextEdit {
+            id: reader
+            y: -1
+            visible: !pane.editing
+            width: parent.width
+            readOnly: true
+            selectByMouse: true
+            textFormat: TextEdit.RichText
+            wrapMode: TextEdit.Wrap
+            text: view.edge + view.rendered + view.edge
+            color: Colors.foreground
+            selectionColor: Util.alpha(Colors.accent, 0.35)
+            selectedTextColor: Colors.foreground
+            font.family: view.sans
+            font.pixelSize: view.bodySize
+            onLinkActivated: function(link) { app.followLink(link, view.pane) }
 
-          MouseArea {
-            anchors.fill: parent
-            acceptedButtons: Qt.NoButton
-            cursorShape: reader.hoveredLink ? Qt.PointingHandCursor : Qt.IBeamCursor
-          }
+            Keys.onPressed: function(event) {
+              if (app.shortcut(event)) { event.accepted = true; return }
+              if (event.modifiers & (Qt.ControlModifier | Qt.AltModifier)) return
+              if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) view.focusEditor()
+              else if (event.key === Qt.Key_Down || event.key === Qt.Key_J) page.contentY = Math.min(page.contentHeight - page.height, page.contentY + Style.space(60))
+              else if (event.key === Qt.Key_Up || event.key === Qt.Key_K) page.contentY = Math.max(0, page.contentY - Style.space(60))
+              else if (event.key === Qt.Key_Slash) app.focusSearchFromView()
+              else return
+              event.accepted = true
+            }
 
-          // A click (not a drag to select) that isn't on a link edits.
-          TapHandler {
-            onTapped: function(point) {
-              if (!reader.linkAt(point.position.x, point.position.y) && !reader.selectedText) view.editAt(point.position.x, point.position.y)
+            MouseArea {
+              anchors.fill: parent
+              acceptedButtons: Qt.NoButton
+              cursorShape: reader.hoveredLink ? Qt.PointingHandCursor : Qt.IBeamCursor
+            }
+
+            // A click (not a drag to select) that isn't on a link edits.
+            TapHandler {
+              onTapped: function(point) {
+                if (!reader.linkAt(point.position.x, point.position.y) && !reader.selectedText) view.editAt(point.position.x, point.position.y)
+              }
             }
           }
         }
