@@ -10,11 +10,10 @@ plain markdown files organised by tags, never folders, encrypted on the
 device and synced through the gateway.
 
 Status (2026-10-19): `SaviPBC/savi-notes` on GitHub (push with `gh auth
-switch -u ross-savi`), v0.1.0 released (local folder, git sync). Branch
-`gateway-sync` has sign-in, end-to-end encrypted sync and the Articles tab,
-tested against the gateway branch `RM/PE-7252/savi-notes` (Jira PE-7252)
-locally; it needs that branch deployed to aigateway.bysavi.com before a
-release. Not yet run on macOS or Windows.
+switch -u ross-savi`). v0.1.0 is released (local folder, git sync); `main` is
+ahead of it with sign-in, end-to-end encrypted sync and the Articles tab
+(Jira PE-7252, gateway branch `RM/PE-7252/savi-notes`), being tried on
+macOS before it goes out as 0.2.0. Not yet run on Windows.
 
 ## What it promises
 
