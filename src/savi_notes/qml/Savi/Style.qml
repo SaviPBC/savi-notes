@@ -3,7 +3,8 @@ import QtQuick
 
 // Sizes and fonts. space() is the pixel measure every layout goes through;
 // the fonts come from the host (App), so each platform's own UI font is used
-// and the bundled icon font fills in the glyphs.
+// and the bundled icon font fills in the glyphs. A theme file's [font] size and
+// [shape] (App.look) replace the defaults here.
 QtObject {
   id: root
 
@@ -12,12 +13,13 @@ QtObject {
     return !isFinite(n) || n <= 0 ? 0 : Math.max(1, Math.round(n))
   }
 
-  readonly property int fontBaseSize: 13
+  readonly property var shape: App.look.shape || ({})
+  readonly property int fontBaseSize: (App.look.font || {}).size || 13
   readonly property real fontScale: fontBaseSize / 12
   function fontPx(mult) { return Math.max(1, Math.round(fontBaseSize * mult)) }
 
-  readonly property int cornerRadius: 10
-  readonly property int normalBorderWidth: 1
+  readonly property int cornerRadius: shape["corner-radius"] !== undefined ? shape["corner-radius"] : 10
+  readonly property int normalBorderWidth: shape["border-width"] !== undefined ? shape["border-width"] : 1
   // The modifier named in shortcut hints: Qt maps Control to Command on macOS.
   readonly property string ctrl: App.isMac ? "⌘" : "Ctrl"
 

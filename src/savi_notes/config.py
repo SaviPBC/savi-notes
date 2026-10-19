@@ -33,6 +33,12 @@ def path():
   return os.path.join(config_dir(), "config.json")
 
 
+def theme_path():
+  """An optional theme: colours, fonts, shapes, and the name and icon the launcher shows.
+  Wolfen writes one for its current theme; without it the app keeps the Savi look."""
+  return os.path.join(config_dir(), "theme.toml")
+
+
 def vault_dir():
   """The local copy of the notes. Not a setting: the AI Core holds the notes, and this is
   the plain markdown the editor, search and the Claude skill read."""

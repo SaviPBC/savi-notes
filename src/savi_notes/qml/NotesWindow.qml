@@ -573,6 +573,11 @@ Window {
     App.fillFileName(window.current.title + ".md")
   }
 
+  function importNotes() {
+    importDialog.currentFolder = Util.fileUrl(App.home)
+    importDialog.open()
+  }
+
   function exportAll() {
     allDialog.currentFolder = Util.fileUrl(App.documents)
     allDialog.open()
@@ -592,6 +597,23 @@ Window {
         engine.call("export", { path: pane.path, out: out }, function(reply) {
           if (reply.error) { window.showStatus("Export failed: " + reply.error, true); return }
           window.showStatus("Exported " + out.split(/[\\/]/).pop(), false)
+        })
+      })
+    }
+  }
+
+  FolderDialog {
+    id: importDialog
+    title: "Import notes from…"
+    onAccepted: {
+      var folder = App.localPath(String(selectedFolder))
+      showStatus("Importing…", false)
+      saveAll(function() {
+        engine.call("import", { folder: folder }, function(reply) {
+          if (reply.error) { window.showStatus("Import failed: " + reply.error, true); return }
+          window.showStatus("Imported " + reply.notes + (reply.notes === 1 ? " note" : " notes")
+            + (reply.renamed ? ", " + reply.renamed + " renamed because the title was taken" : ""), false)
+          window.reload()
         })
       })
     }

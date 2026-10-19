@@ -4,5 +4,6 @@ singleton Colors 1.0 Colors.qml
 singleton Util 1.0 Util.qml
 singleton Border 1.0 Border.qml
 BorderSurface 1.0 BorderSurface.qml
+BorderOverlay 1.0 BorderOverlay.qml
 PanelToolTip 1.0 PanelToolTip.qml
 ConfirmDialog 1.0 ConfirmDialog.qml

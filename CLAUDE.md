@@ -1,8 +1,8 @@
 # Savi Notes
 
-The shareable, cross-platform version of Wolfen Notes, the notes app in Ross
-Mountjoy's Wolfen desktop (`~/Work/wolfen-os/shell/apps/notes`). It is meant
-for Ross's colleagues at Savi on Windows and macOS: they paste the prompt in
+Ross Mountjoy's notes app, which began as a port of Wolfen Notes (his Wolfen
+desktop's, since retired in its favour) and is meant for his colleagues at
+Savi on Windows and macOS too: they paste the prompt in
 `README.md` into Claude Code, which installs the app with `uv`; the app's
 first launch signs them in to the Savi AI Core (the gateway,
 `~/Work/savi/aigateway`) and installs its own Claude Code skill. Notes are
@@ -56,7 +56,8 @@ exception: company content, plaintext, edited through the gateway.
   waiting, newKey, recover); the steps themselves are in `app.py`.
 - `src/savi_notes/qml/Savi/` — the theme module (`import Savi`): `Style`
   (sizes, fonts, `ctrl` = ⌘ on Mac), `Colors` (Savi palette, dark/light),
-  `Util`, `Border`, `BorderSurface`, `PanelToolTip`, `ConfirmDialog`.
+  `Util`, `Border` (+ `BorderGeometry.js`, `BorderOverlay`), `BorderSurface`,
+  `PanelToolTip`, `ConfirmDialog`; all of it follows `theme.toml` (below).
 - `cli.py` (`savi-notes …`), `config.py` (platformdirs; `config.json` with
   `gateway`, `semantic`, `theme`; the vault is always `data_dir()/Notes`, and
   a 0.1 `vault` setting is copied in once by `app.import_legacy`), `llama.py`
@@ -72,8 +73,9 @@ exception: company content, plaintext, edited through the gateway.
   V mark, colours from app.bysavi.com's favicon).
 - `scripts/boot_test.py` — starts the app headless, signed out and then
   signed in, and fails on QML or engine complaints; `scripts/sync_test.py` —
-  two devices through an in-memory stand-in for `/notes/v1`. CI runs both on
-  Ubuntu, macOS and Windows.
+  two devices through an in-memory stand-in for `/notes/v1`;
+  `scripts/import_test.py` — an Obsidian-shaped import. CI runs them on Ubuntu,
+  macOS and Windows.
 
 ## Running and testing
 
@@ -128,43 +130,22 @@ window's own geometry with `grim -g`, never the full screen.
 - Mermaid diagrams render only when `mmdr` or `mmdc` (mermaid-cli) is on the
   PATH; otherwise the block shows as code. Math needs nothing.
 
-## Keeping up with Wolfen Notes
+## Theming, and Wolfen
 
-Wolfen Notes is the upstream; Ross keeps improving it in `~/Work/wolfen-os`
-and will later ask to bring the changes here. The tag `savi-notes-synced` in
-that repo marks the last commit this port includes. To sync:
+`config_dir()/theme.toml` is optional: top-level `name`, `icon` (the
+launcher's, so Wolfen can say "Notes") and `mode`; `[colors]` (the base roles
+plus any palette name the renderer uses), `[popups]` and `[tooltip]`
+(`background`, `text`, `border`, which may be a gradient `"#a #b 45deg"`),
+`[font]` (`family`, `mono`, `size`) and `[shape]` (`corner-radius`,
+`border-width`). The host re-reads it when it changes (`App.look`); `Colors`,
+`Style` and `Border` fall back to the Savi look for anything missing, and the
+Theme setting hides while it sets colours.
 
-1. `git -C ~/Work/wolfen-os log --oneline savi-notes-synced..main -- shell/apps/notes`
-   lists what's new; read each diff and apply it here by hand. Most QML is
-   line-for-line the same; the mechanical differences are:
-   - `import qs.Commons` / `import qs.Ui` → `import Savi`; no `import Quickshell`.
-   - `Quickshell.env("HOME")` → `App.home`; `WOLFEN_PATH` has no equivalent.
-   - `FloatingWindow` → `Window` with `visible: true`, `width`/`height`,
-     `minimumWidth`/`minimumHeight`, `onClosing`; `IpcHandler` → `Connections
-     { target: App }` (`onOpenRequested`); the engine `Process` → `Engine.qml`
-     over `EngineBridge` (`engine.close()` instead of `stdinEnabled = false`).
-   - `font.family: Style.font.family` lines are dropped (the app font is
-     inherited) except glyph-only items (`Style.font.icon`) and the editor /
-     code (`Style.font.mono`).
-   - Strings containing `Ctrl` become `Style.ctrl + "…"`.
-   - Dialog results go through `App.localPath(String(selectedFile))`.
-   - The PDF op is `App.exportPdf(title, html, out)` in the host, not an
-     engine op; `requestAssets` also passes `theme: Colors.diagram`.
-   - `Colors.palette` entries are hex strings; `Markdown.js` converts them.
-   - `notes-engine.py` → `engine.py`: see the `config`/`llama`/`mathsvg`
-     imports, `send2trash`, `NO_WINDOW`, `SemanticOff`, the `settings` op, no
-     `fork`/`prctl`/WeasyPrint/`gio`, and the final sync runs inline on EOF.
-     Wolfen's git `Sync` class is not ported at all: changes to it don't
-     apply; `sync.py` replaces it, and the engine's vault lock wraps `handle`.
-2. Things this port has that Wolfen doesn't: `Onboarding.qml`, the finder's
-   Settings tab and `settingsRows`, the Articles tab (`articleTab`,
-   `visibleArticles`, `NotePane.isArticle`, `window.articles`), sign-out and
-   `account` events in `NotesWindow.qml`, the engine-restart handling in
-   `Engine.qml`/`NotesWindow.qml`, the update dialog, `App.*` properties.
-   Keep them when merging upstream edits to the same files.
-3. Copy `FORMAT.md` over (retitle it "Savi Notes formatting") whenever
-   Wolfen's changes, and bump the renderer together with it.
-4. Move the marker: `git -C ~/Work/wolfen-os tag -f -a savi-notes-synced -m "…" && git -C ~/Work/wolfen-os push -f origin savi-notes-synced`.
+This app replaced Wolfen Notes (retired from `~/Work/wolfen-os` on
+2026-10-19). Wolfen themes it through `default/themed/savi-notes.toml.tpl`,
+which each theme switch renders and a migration links in as `theme.toml`;
+`SUPER+SHIFT+N` runs `savi-notes`. `BorderGeometry.js` and
+`BorderOverlay.qml` are copies of Wolfen's, for its gradient borders.
 
 ## Releases and updates
 

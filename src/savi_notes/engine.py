@@ -422,6 +422,64 @@ class Vault:
     shutil.copyfile(source, os.path.join(folder, name))
     return name
 
+  def import_folder(self, source):
+    """Copy another vault in: an Obsidian vault, Wolfen Notes, or an export. Notes don't
+    live in folders here, so a note's folders become its tags. A title already taken gets
+    a number, and the imported notes' links to it follow, since that is what they meant."""
+    source = os.path.realpath(os.path.expanduser(source))
+    if source == self.root or source.startswith(self.root + os.sep) or self.root.startswith(source + os.sep):
+      raise ValueError("choose a folder outside Savi Notes' own")
+    taken = {n["title"].lower() for n in self.notes.values()}
+    renamed, imported, files = {}, [], 0
+    for dirpath, dirnames, filenames in os.walk(source):
+      dirnames[:] = sorted(d for d in dirnames if not d.startswith("."))
+      folders = [] if dirpath == source else os.path.relpath(dirpath, source).split(os.sep)
+      for name in sorted(filenames):
+        path = os.path.join(dirpath, name)
+        if name.startswith("."):
+          continue
+        if not name.endswith(".md"):
+          files += self.import_file(path)
+          continue
+        with open(path, encoding="utf-8", errors="replace") as f:
+          meta, body = split_frontmatter(f.read())
+        tags = clean_tags(re.sub(r"[^\w/-]+", "-", folder.lower()).strip("-") for folder in folders)
+        if tags:
+          own = frontmatter_tags(meta)
+          meta = set_frontmatter_tags(meta, own + [t for t in tags if t not in own])
+        rel = self.free_name(name[:-3])
+        if rel[:-3] != name[:-3] and name[:-3].lower() in taken and name[:-3] not in renamed:
+          renamed[name[:-3]] = rel[:-3]
+        self.write_text(rel, join_note(meta, body))
+        imported.append(rel)
+    for old, new in renamed.items():
+      pattern = re.compile(r"(!?\[\[)" + re.escape(old) + r"((?:#[^\]\n|]*)?(?:\|[^\]\n]*)?\]\])", re.I)
+      for rel in imported:
+        with open(self.path_of(rel), encoding="utf-8") as f:
+          text = f.read()
+        fixed = pattern.sub(lambda m: m.group(1) + new + m.group(2), text)
+        if fixed != text:
+          self.write_text(rel, fixed)
+    return {"notes": len(imported), "files": files, "renamed": len(renamed)}
+
+  def import_file(self, source):
+    """An attachment, into Attachments/; one already there with the same bytes isn't copied twice."""
+    folder = os.path.join(self.root, "Attachments")
+    os.makedirs(folder, exist_ok=True)
+    stem, ext = os.path.splitext(os.path.basename(source))
+    name, n = stem + ext, 2
+    with open(source, "rb") as f:
+      data = f.read()
+    while os.path.exists(os.path.join(folder, name)):
+      with open(os.path.join(folder, name), "rb") as f:
+        if f.read() == data:
+          return 0
+      name = "%s %d%s" % (stem, n, ext)
+      n += 1
+    with open(os.path.join(folder, name), "wb") as f:
+      f.write(data)
+    return 1
+
   def attachment(self, name):
     """Absolute path of an embedded file, found by name like Obsidian does."""
     name = name.strip()
@@ -1042,6 +1100,10 @@ class Engine:
     if op == "export":
       shutil.copyfile(v.path_of(req["path"]), req["out"])
       return {}
+    if op == "import":
+      result = v.import_folder(req["folder"])
+      self.edited()
+      return result
     if op == "exportAll":
       base = os.path.join(req["folder"], "Savi Notes")
       out, n = base, 2

@@ -7,6 +7,7 @@ import json
 import os
 import base64
 import shlex
+import tomllib
 import shutil
 import subprocess
 import sys
@@ -121,6 +122,7 @@ class App(QObject):
   stepChanged = Signal()
   stepReady = Signal(str, str)
   themeChanged = Signal()
+  lookChanged = Signal()
   semanticChanged = Signal()
   updateChecked = Signal(str)
 
@@ -136,6 +138,12 @@ class App(QObject):
     self.step = self.first_step()
     self.error = ""
     self.stepReady.connect(self.stepped)
+    self.look_stamp, self.look_data = None, {}
+    self.reload_look()
+    # A theme switch replaces the file, so look for that rather than watching it.
+    self.look_timer = QTimer(self)
+    self.look_timer.timeout.connect(self.reload_look)
+    self.look_timer.start(2000)
     if self.step == "recover":
       QTimer.singleShot(0, self.resume)
     QGuiApplication.styleHints().colorSchemeChanged.connect(lambda scheme: self.darkChanged.emit())
@@ -361,17 +369,46 @@ class App(QObject):
     from platformdirs import user_documents_dir
     return user_documents_dir().replace("\\", "/")
 
+  def reload_look(self):
+    try:
+      stat = os.stat(config.theme_path())
+      stamp = (stat.st_mtime_ns, stat.st_size)
+    except OSError:
+      stamp = None
+    if stamp == self.look_stamp:
+      return
+    self.look_stamp = stamp
+    try:
+      with open(config.theme_path(), "rb") as f:
+        self.look_data = tomllib.load(f)
+    except OSError:
+      self.look_data = {}
+    except tomllib.TOMLDecodeError as e:
+      sys.stderr.write("savi-notes: theme.toml: %s\n" % e)
+      self.look_data = {}
+    font = QFont(QGuiApplication.font())
+    font.setFamilies([self.uiFamily, self.families["icon"]])
+    font.setPixelSize(int(self.look_data.get("font", {}).get("size", 13)))
+    QGuiApplication.setFont(font)
+    self.lookChanged.emit()
+    self.darkChanged.emit()
+
+  @Property("QVariantMap", notify=lookChanged)
+  def look(self):
+    """The theme file's contents; {} means the Savi look."""
+    return self.look_data
+
   @Property(bool, constant=True)
   def isMac(self):
     return sys.platform == "darwin"
 
-  @Property(str, constant=True)
+  @Property(str, notify=lookChanged)
   def uiFamily(self):
-    return self.families["ui"]
+    return self.look_data.get("font", {}).get("family") or self.families["ui"]
 
-  @Property(str, constant=True)
+  @Property(str, notify=lookChanged)
   def monoFamily(self):
-    return self.families["mono"]
+    return self.look_data.get("font", {}).get("mono") or self.families["mono"]
 
   @Property(str, constant=True)
   def iconFamily(self):
@@ -425,6 +462,8 @@ class App(QObject):
 
   @Property(bool, notify=darkChanged)
   def dark(self):
+    if self.look_data.get("colors"):
+      return self.look_data.get("mode", "dark") != "light"
     theme = self.cfg.get("theme", "system")
     if theme in ("dark", "light"):
       return theme == "dark"
@@ -440,7 +479,7 @@ class App(QObject):
     try:
       escaped = title.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
       doc = QTextDocument()
-      doc.setDefaultFont(QFont(self.families["ui"], 11))
+      doc.setDefaultFont(QFont(self.uiFamily, 11))
       doc.setBaseUrl(QUrl.fromLocalFile(config.vault_dir() + "/"))
       doc.setHtml("<h1>%s</h1>%s" % (escaped, html))
       writer = QPdfWriter(out)

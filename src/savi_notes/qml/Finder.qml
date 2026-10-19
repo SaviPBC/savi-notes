@@ -33,15 +33,17 @@ Item {
     { label: onArticle ? "Delete article" : "Delete note", glyph: 0xf09e7, danger: true, run: function() { app.confirmDelete() } }
   ]))
   // Settings rows stay open after Enter, so the new value shows.
-  readonly property var settingsRows: [
+  readonly property var settingsRows: (App.look.colors ? [] : [
     { label: "Theme", glyph: 0xf0594, hint: { system: "System", dark: "Dark", light: "Light" }[App.theme], stay: true,
-      run: function() { App.setTheme({ system: "dark", dark: "light", light: "system" }[App.theme]) } },
+      run: function() { App.setTheme({ system: "dark", dark: "light", light: "system" }[App.theme]) } }
+  ]).concat([
     { label: "Find notes by meaning", glyph: 0xf0349, hint: App.semantic ? "On" : "Off", stay: true, run: function() { App.setSemantic(!App.semantic) } },
+    { label: "Import notes", glyph: 0xf02fa, hint: "From Obsidian, Wolfen Notes or an export", run: function() { app.importNotes() } },
     { label: "Export all notes", glyph: 0xf0207, hint: "A folder of Markdown files", run: function() { app.exportAll() } },
     { label: "Copy recovery key", glyph: 0xf0306, hint: "For your other computers", run: function() { App.copy(App.recoveryKey); app.showStatus("Recovery key copied", false) } },
     { label: "Sign out", glyph: 0xf0343, hint: App.email, danger: true, run: function() { app.confirmSignOut() } },
     { label: "Check for updates", glyph: 0xf06b0, hint: "Savi Notes " + App.version, run: function() { App.checkUpdates() } }
-  ]
+  ])
   readonly property bool actionTab: tab === "file" || tab === "settings"
   readonly property var visibleActions: {
     var typed = app.query.trim().toLowerCase()

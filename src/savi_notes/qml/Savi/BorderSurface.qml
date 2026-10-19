@@ -1,7 +1,8 @@
 import QtQuick
 import Savi
 
-// A rectangle whose border comes from a Border spec.
+// A rectangle whose border comes from a Border spec: Rectangle's own border when
+// it's one colour and width, BorderOverlay for gradients or per-side widths.
 Rectangle {
   id: root
 
@@ -17,6 +18,15 @@ Rectangle {
   readonly property real contentBottomInset: Border.bottom(borderSpec) + bottomPadding
   readonly property real contentLeftInset: Border.left(borderSpec) + leftPadding
 
-  border.width: Border.top(borderSpec)
-  border.color: Border.color(borderSpec)
+  border.width: Border.canUseNative(borderSpec) ? Border.uniformWidth(borderSpec) : 0
+  border.color: Border.canUseNative(borderSpec) ? Border.color(borderSpec) : "transparent"
+
+  Loader {
+    anchors.fill: parent
+    active: Border.needsOverlay(root.borderSpec)
+    sourceComponent: BorderOverlay {
+      radius: root.radius
+      borderSpec: root.borderSpec
+    }
+  }
 }

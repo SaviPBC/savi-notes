@@ -136,7 +136,7 @@ FocusScope {
     }
 
     Row {
-      visible: onboarding.step === "signin"
+      visible: onboarding.step === "signin" && !App.look.colors
       spacing: Style.space(6)
       Text {
         anchors.verticalCenter: parent.verticalCenter

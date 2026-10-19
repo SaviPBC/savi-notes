@@ -181,7 +181,7 @@ Footnotes are numbered in order and listed at the end of the note.
 
 ## Math
 
-LaTeX through MathJax: `$e^{i\pi} = -1$` inline, and blocks between `$$`:
+LaTeX: `$e^{i\pi} = -1$` inline, and blocks between `$$`:
 
 ```
 $$

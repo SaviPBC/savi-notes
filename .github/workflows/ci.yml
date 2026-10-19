@@ -31,6 +31,8 @@ jobs:
           uv run savi-notes skill
       - name: Two devices syncing
         run: uv run python scripts/sync_test.py
+      - name: Importing a vault
+        run: uv run python scripts/import_test.py
       - name: Boot the app headless
         run: uv run python scripts/boot_test.py
       - run: uv build

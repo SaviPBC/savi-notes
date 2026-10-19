@@ -12,6 +12,18 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 
+def branding():
+  """The launcher's name and icon: Savi Notes unless the theme file names others."""
+  import tomllib
+  from . import config
+  try:
+    with open(config.theme_path(), "rb") as f:
+      look = tomllib.load(f)
+  except (OSError, tomllib.TOMLDecodeError):
+    look = {}
+  return look.get("name") or "Savi Notes", look.get("icon") or ""
+
+
 def launcher(gui=False):
   """The installed command, the windowless one on Windows when asked."""
   if gui and sys.platform == "win32":
@@ -40,11 +52,15 @@ def linux():
   folder = os.path.join(os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share"), "applications")
   os.makedirs(folder, exist_ok=True)
   path = os.path.join(folder, "savi-notes.desktop")
+  name, icon = branding()
+  # The bare command when it's on the PATH, so a launcher that matches key bindings to
+  # Exec lines (Wolfen's) sees Super+Shift+N's "savi-notes" as this app.
+  command = "savi-notes" if shutil.which("savi-notes") == launcher() else '"%s"' % launcher()
   with open(path, "w", encoding="utf-8") as f:
-    f.write("[Desktop Entry]\nType=Application\nName=Savi Notes\nComment=Markdown notes with tags and search\n"
-            "Exec=\"%s\" %%u\nIcon=%s\nTerminal=false\nCategories=Office;TextEditor;\nStartupWMClass=savi-notes\n"
-            % (launcher(), os.path.join(HERE, "icon.svg")))
-  return "It's in your app launcher as Savi Notes."
+    f.write("[Desktop Entry]\nType=Application\nName=%s\nComment=Markdown notes with tags and search\n"
+            "Exec=%s %%u\nIcon=%s\nTerminal=false\nCategories=Office;TextEditor;\nStartupWMClass=savi-notes\n"
+            % (name, command, icon or os.path.join(HERE, "icon.svg")))
+  return "It's in your app launcher as %s." % name
 
 
 def write_if_changed(path, data):

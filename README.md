@@ -52,6 +52,35 @@ launcher (Linux), and installs the Claude Code skill at
 - Your notes are always yours as files: **Export as Markdown** (in a note's
   This file actions) saves one, and **Export all notes** saves a folder of
   every note and attachment.
+- **Import notes** (Settings) brings in an Obsidian vault, or any folder of
+  Markdown. Notes here don't live in folders, so the folders a note sat in
+  become its tags; attachments go to `Attachments/`.
+
+## Themes
+
+Drop a `theme.toml` in the app's config folder to restyle it. Every key is
+optional, and anything left out keeps the Savi look:
+
+```toml
+name = "Notes"            # what the launcher calls it
+mode = "dark"
+
+[colors]
+background = "#16121d"
+foreground = "#cdc6da"
+accent = "#e0304e"
+
+[popups]
+border = "#e0304e #a26be0 45deg"   # one colour, or a gradient
+
+[font]
+size = 12
+
+[shape]
+corner-radius = 0
+```
+
+The app picks up changes to the file while it's open.
 
 Claude Code picks up the skill on its next start. Then "put this in a note",
 "find my note about X" or "check my notes" just work; `savi-notes search`,
