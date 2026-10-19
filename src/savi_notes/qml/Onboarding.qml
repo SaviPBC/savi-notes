@@ -131,11 +131,6 @@ FocusScope {
     // ---------------------------------------------------------------- sign in
 
     Prose {
-      visible: onboarding.step === "signin"
-      text: "Your notes are encrypted on this computer before they're saved to the Savi AI Core, so they're on every computer you sign in to and no one at Savi can read them. Notes are organised by tags, not folders."
-    }
-
-    Prose {
       visible: onboarding.step === "waiting"
       text: "Sign in with your Savi Google account and authorize Savi Notes, then come back here."
     }
@@ -189,7 +184,7 @@ FocusScope {
 
     Prose {
       visible: onboarding.step === "newKey"
-      text: "It unlocks your notes on any other computer you sign in to. Savi doesn't keep a copy, so if you lose this key and this computer, nobody can recover your notes. Save it in your password manager."
+      text: "Your notes are encrypted with this key on your computer before they're saved to the Savi AI Core, so no one at Savi can read them. It also unlocks them on any other computer you sign in to. Savi doesn't keep a copy, so if you lose this key and this computer, nobody can recover your notes. Save it in your password manager."
     }
 
     Rectangle {
