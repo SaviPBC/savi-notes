@@ -670,6 +670,10 @@ FocusScope {
       Item {
         id: body
         width: parent.width
+        // Clipping makes this the reader's viewport. Without it the viewport is the
+        // Flickable, and past 10,000 characters of HTML (any sizable table) Qt draws only
+        // what's on screen and loses blocks above a table when scrolled back to them.
+        clip: true
         height: pane.editing ? Math.max(editor.contentHeight, Style.space(240)) : Math.max(reader.contentHeight, Style.space(120))
 
         TextEdit {
