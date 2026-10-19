@@ -754,7 +754,8 @@ class Assets:
 
   def stem(self, item, ink):
     source = item.get("url") or item.get("tex") or item.get("src") or ""
-    return os.path.join(ASSET_DIR, hashlib.sha1(("3\0%s\0%s\0%s\0%s" % (item["kind"], item.get("display"), ink, source)).encode()).hexdigest())
+    # The leading number changes whenever a renderer does, so stale drawings aren't reused.
+    return os.path.join(ASSET_DIR, hashlib.sha1(("4\0%s\0%s\0%s\0%s" % (item["kind"], item.get("display"), ink, source)).encode()).hexdigest())
 
   def cached(self, item, ink):
     meta = self.stem(item, ink) + ".json"

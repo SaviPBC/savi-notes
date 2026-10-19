@@ -2,6 +2,10 @@
 
 import ziamath
 
+# Plain SVG 1.1 paths. ziamath's default (SVG 2) draws each glyph as a <symbol> placed by
+# <use>, which Qt's SVG renderer skips, leaving only the fraction bars.
+ziamath.config.svg2 = False
+
 # Sizes are pixels beside 15px text, which is what the renderer scales from.
 SIZE = 15
 
