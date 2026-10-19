@@ -3,16 +3,15 @@
 import json
 import os
 
-from platformdirs import user_cache_dir, user_config_dir, user_data_dir, user_documents_dir
+from platformdirs import user_cache_dir, user_config_dir, user_data_dir
 
 APP = "savi-notes"
 
 DEFAULTS = {
-  "vault": "",
+  # The Savi AI Core, which signs people in and holds their encrypted notes.
+  "gateway": "https://aigateway.bysavi.com",
   # Meaning search: a local embedding model through llama.cpp, downloaded on first use.
   "semantic": True,
-  # Commit, pull and push the vault while the app is open, when it is a git repo.
-  "sync": True,
   # "system", "dark" or "light".
   "theme": "system",
 }
@@ -34,8 +33,10 @@ def path():
   return os.path.join(config_dir(), "config.json")
 
 
-def default_vault():
-  return os.path.join(user_documents_dir(), "Savi Notes")
+def vault_dir():
+  """The local copy of the notes. Not a setting: the AI Core holds the notes, and this is
+  the plain markdown the editor, search and the Claude skill read."""
+  return os.path.join(data_dir(), "Notes")
 
 
 def load():
@@ -46,8 +47,7 @@ def load():
     data = {}
   merged = dict(DEFAULTS)
   merged.update(data if isinstance(data, dict) else {})
-  if merged["vault"]:
-    merged["vault"] = os.path.expanduser(merged["vault"])
+  merged["gateway"] = merged["gateway"].rstrip("/")
   return merged
 
 

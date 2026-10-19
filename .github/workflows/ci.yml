@@ -22,14 +22,15 @@ jobs:
       - name: Engine and CLI
         shell: bash
         run: |
-          mkdir vault
-          printf -- '---\ntags: [ci]\n---\nHello from CI.\n' > "vault/CI note.md"
-          uv run python -c "from savi_notes import config; c = config.load(); c.update(vault='$PWD/vault', semantic=False, sync=False); config.save(c)"
+          vault=$(uv run python -c "import os; from savi_notes import config; c = config.load(); c.update(semantic=False); config.save(c); os.makedirs(config.vault_dir(), exist_ok=True); print(config.vault_dir())")
+          printf -- '---\ntags: [ci]\n---\nHello from CI.\n' > "$vault/CI note.md"
           uv run savi-notes search hello | grep "CI note"
           uv run savi-notes tags | grep ci
           uv run savi-notes check
           uv run savi-notes format | grep "Callout"
           uv run savi-notes skill
+      - name: Two devices syncing
+        run: uv run python scripts/sync_test.py
       - name: Boot the app headless
         run: uv run python scripts/boot_test.py
       - run: uv build

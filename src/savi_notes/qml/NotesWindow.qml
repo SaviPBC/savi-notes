@@ -3,8 +3,8 @@ import QtQuick.Window
 import QtQuick.Dialogs
 import Savi
 
-// Wolfen Notes: one window over a vault of markdown files organised by
-// tags. notes-engine.py does the file work, search and sync; this window
+// Savi Notes: one window over a vault of markdown files organised by
+// tags. engine.py does the file work, search and sync; this window
 // keeps the open notes, in one pane or several splits, and the finder over
 // them.
 Window {
@@ -72,6 +72,8 @@ Window {
     onEvent: function(message) { window.engineEvent(message) }
     onExited: function(code) {
       if (window.quitting) { Qt.quit(); return }
+      // Stopped on purpose: signed out, or the sign-in was lost.
+      if (App.needsSetup) return
       window.showStatus("The notes engine stopped and was restarted", true)
       reloadTimer.restart()
     }
@@ -123,11 +125,20 @@ Window {
       if (name) window.openNamed(name)
       else finder.open()
     }
-    function onNeedsSetupChanged() { if (!App.needsSetup) window.start() }
-    function onVaultChanged() {
-      if (!window.loaded) return
+    function onNeedsSetupChanged() {
+      if (!App.needsSetup) { window.start(); return }
+      // Signed out: nothing of the last person's notes stays on screen.
+      finder.close()
       window.panes.forEach(function(p) { p.clear() })
-      window.start()
+      window.notes = []
+      window.byPath = {}
+      window.byTitle = {}
+      window.tagCounts = []
+      window.activeTags = []
+      window.query = ""
+      window.loaded = false
+      window.syncState = ""
+      window.syncTime = 0
     }
     function onUpdateChecked(message) { window.showStatus(message, false) }
     function onUpdateAvailable(version, required) {
@@ -156,6 +167,8 @@ Window {
       window.syncMessage = message.message || ""
       if (message.time) window.syncTime = message.time
       if (message.state === "conflict" || message.state === "error") showStatus(message.message, true)
+    } else if (message.event === "account") {
+      App.accountLost(message.state)
     } else if (message.event === "assets") {
       mergeAssets(message.assets)
     } else if (message.event === "changed") {
@@ -471,6 +484,17 @@ Window {
     if (at >= 0) tags.splice(at, 1)
     else tags.push(tag)
     window.activeTags = tags
+  }
+
+  // Signing out deletes this computer's copy, so only once the AI Core has every change.
+  function signOut() {
+    saveAll(function() {
+      showStatus("Syncing before signing out…", false)
+      engine.call("unsent", {}, function(reply) {
+        if (reply.unsent === 0) App.signOut()
+        else showStatus(reply.unsent + (reply.unsent === 1 ? " change hasn't" : " changes haven't") + " reached the AI Core yet. Try again once you're online.", true)
+      })
+    })
   }
 
   function syncNow() {

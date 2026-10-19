@@ -2,7 +2,8 @@
 
 Owns everything the Notes window does to the vault: reading and writing
 notes, tags, renames that keep [[links]] intact, hybrid search (words plus
-local embeddings from llama.cpp) and the background git sync.
+local embeddings from llama.cpp) and the background sync with the AI Core
+(sync.py).
 
   python -m savi_notes.engine serve VAULT            JSON lines on stdin/stdout (the app)
   python -m savi_notes.engine search VAULT QUERY...  print ranked notes (CLI, agents)
@@ -35,6 +36,7 @@ import urllib.request
 import numpy as np
 
 from . import config, llama, mathsvg
+from .sync import Sync
 
 try:
   from send2trash import send2trash
@@ -50,7 +52,6 @@ MODEL_SIZE = 146146432
 MODEL_PATH = os.path.join(config.data_dir(), "models", MODEL_NAME)
 
 CHUNK_CHARS = 1200
-SYNC_DELAY = 45
 WATCH_INTERVAL = 2
 
 FRONTMATTER = re.compile(r"\A---\n(.*?\n)?---\n?", re.S)
@@ -708,61 +709,6 @@ def search(vault, index, query, tags=None, limit=30):
   return results[:limit]
 
 
-# ------------------------------------------------------------------ git sync
-
-class Sync:
-  def __init__(self, vault, on_change):
-    self.vault = vault
-    self.on_change = on_change
-    self.timer = None
-    self.lock = threading.Lock()
-    self.refresh()
-
-  def refresh(self):
-    self.enabled = os.path.isdir(os.path.join(self.vault.root, ".git")) and shutil.which("git") is not None and config.load().get("sync", True)
-
-  def git(self, *args):
-    return subprocess.run(["git", "-C", self.vault.root, *args], capture_output=True, text=True, timeout=120, **NO_WINDOW)
-
-  def soon(self, delay=SYNC_DELAY):
-    if not self.enabled:
-      return
-    if self.timer:
-      self.timer.cancel()
-    self.timer = threading.Timer(delay, self.run)
-    self.timer.daemon = True
-    self.timer.start()
-
-  def run(self):
-    if not self.enabled or not self.lock.acquire(blocking=False):
-      return
-    try:
-      emit({"event": "sync", "state": "running"})
-      if self.git("status", "--porcelain").stdout.strip():
-        self.git("add", "-A")
-        stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-        self.git("commit", "-q", "-m", "Sync notes from %s %s" % (socket.gethostname(), stamp))
-      before = self.git("rev-parse", "HEAD").stdout.strip()
-      if self.git("fetch", "-q").returncode != 0:
-        emit({"event": "sync", "state": "offline"})
-        return
-      if self.git("rebase", "-q", "@{upstream}").returncode != 0:
-        self.git("rebase", "--abort")
-        emit({"event": "sync", "state": "conflict", "message": "Notes changed elsewhere in the same place; your edits are kept locally"})
-        return
-      if self.git("rev-parse", "HEAD").stdout.strip() != before:
-        self.on_change()
-      ahead = self.git("rev-list", "--count", "@{upstream}..HEAD").stdout.strip()
-      if ahead not in ("", "0") and self.git("push", "-q").returncode != 0:
-        emit({"event": "sync", "state": "error", "message": "Push failed"})
-        return
-      emit({"event": "sync", "state": "ok", "time": int(time.time())})
-    except Exception as e:
-      emit({"event": "sync", "state": "error", "message": str(e)})
-    finally:
-      self.lock.release()
-
-
 # ------------------------------------------------------------------ assets
 
 ASSET_DIR = os.path.join(config.cache_dir(), "assets")
@@ -912,7 +858,7 @@ class Engine:
     self.vault.scan()
     self.embedder = Embedder()
     self.index = Index(self.vault, self.embedder)
-    self.sync = Sync(self.vault, self.pulled)
+    self.sync = Sync(self.vault, emit, self.pulled)
     self.assets = Assets(self.vault)
     self.index_timer = None
 
@@ -959,6 +905,10 @@ class Engine:
       if req.get("rescan"):
         v.scan()
       return {"notes": v.listing(), "root": v.root, "sync": self.sync.enabled}
+    if op == "unsent":
+      # Signing out deletes this copy, so first make sure the AI Core has all of it.
+      self.sync.run()
+      return {"unsent": self.sync.unsent()}
     if op == "read":
       return v.read(req["path"])
     if op == "save":
@@ -971,6 +921,7 @@ class Engine:
       return {"path": path}
     if op == "rename":
       path, updated = v.rename(req["path"], req["title"])
+      self.sync.renamed(req["path"], path)
       self.edited()
       return {"path": path, "updated": updated}
     if op == "delete":
@@ -991,7 +942,6 @@ class Engine:
       threading.Thread(target=self.sync.run, daemon=True).start()
       return {}
     if op == "settings":
-      self.sync.refresh()
       if not config.load().get("semantic", True):
         self.embedder.stop()
         self.embedder.state = "idle"
@@ -1002,8 +952,7 @@ class Engine:
   def serve(self):
     threading.Thread(target=self.reindex, daemon=True).start()
     threading.Thread(target=self.watch, daemon=True).start()
-    if self.sync.enabled:
-      self.sync.soon(2)
+    threading.Thread(target=self.sync.loop, daemon=True).start()
     try:
       for line in sys.stdin:
         line = line.strip()
@@ -1012,7 +961,9 @@ class Engine:
         req = {}
         try:
           req = json.loads(line)
-          reply = self.handle(req)
+          # Sync writes to the same files from its own thread.
+          with self.vault.lock:
+            reply = self.handle(req)
           reply["id"] = req.get("id")
           emit(reply)
         except Exception as e:
@@ -1021,8 +972,8 @@ class Engine:
       self.embedder.stop()
       if self.sync.timer:
         self.sync.timer.cancel()
-        # The window is gone; finish the pending sync before exiting.
-        self.sync.run()
+      # The window is gone; send what is left before exiting.
+      self.sync.run()
 
 
 def main(argv):

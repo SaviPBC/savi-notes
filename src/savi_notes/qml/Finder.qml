@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Dialogs
 import Savi
 
 // Find anything, as in PyCharm's Search Everywhere: Shift twice opens it over
@@ -33,8 +32,8 @@ Item {
     { label: "Theme", glyph: 0xf0594, hint: { system: "System", dark: "Dark", light: "Light" }[App.theme], stay: true,
       run: function() { App.setTheme({ system: "dark", dark: "light", light: "system" }[App.theme]) } },
     { label: "Find notes by meaning", glyph: 0xf0349, hint: App.semantic ? "On" : "Off", stay: true, run: function() { App.setSemantic(!App.semantic) } },
-    { label: "Sync with git when the folder is a repository", glyph: 0xf04e6, hint: App.sync ? "On" : "Off", stay: true, run: function() { App.setSync(!App.sync) } },
-    { label: "Notes folder", glyph: 0xf024b, hint: App.vault.replace(App.home, "~"), run: function() { vaultDialog.currentFolder = Util.fileUrl(App.vault); vaultDialog.open() } },
+    { label: "Copy recovery key", glyph: 0xf0306, hint: "For your other computers", run: function() { App.copy(App.recoveryKey); app.showStatus("Recovery key copied", false) } },
+    { label: "Sign out", glyph: 0xf0343, hint: App.email, danger: true, run: function() { app.signOut() } },
     { label: "Check for updates", glyph: 0xf06b0, hint: "Savi Notes " + App.version, run: function() { App.checkUpdates() } }
   ]
   readonly property bool actionTab: tab === "file" || tab === "settings"
@@ -572,9 +571,4 @@ Item {
     }
   }
 
-  FolderDialog {
-    id: vaultDialog
-    title: "Where should your notes live?"
-    onAccepted: App.setVault(App.localPath(String(selectedFolder)))
-  }
 }

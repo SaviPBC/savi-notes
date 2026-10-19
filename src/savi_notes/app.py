@@ -1,10 +1,13 @@
 """The Savi Notes window: Qt Quick hosting the QML, the engine process beside
-it, one instance per user, PDF export and the update check."""
+it, one instance per user, signing in and the note key, PDF export and the
+update check."""
 
 import hashlib
 import json
 import os
+import base64
 import shlex
+import shutil
 import subprocess
 import sys
 import threading
@@ -15,7 +18,7 @@ from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuickControls2 import QQuickStyle
 
-from . import __version__, config, update
+from . import __version__, account, config, crypto, update
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 QML_DIR = os.path.join(HERE, "qml")
@@ -92,16 +95,15 @@ class EngineBridge(QObject):
     self.closing = True
     self.proc.closeWriteChannel()
 
-  def restart(self, vault):
+  def stop(self):
     self.closing = True
+    self.queue = []
     if self.proc.state() != QProcess.NotRunning:
       self.proc.closeWriteChannel()
-      if not self.proc.waitForFinished(5000):
+      if not self.proc.waitForFinished(15000):
         self.proc.kill()
         self.proc.waitForFinished(2000)
     self.closing = False
-    self.queue = []
-    self.start(vault)
 
   def wait(self, ms):
     if self.proc.state() != QProcess.NotRunning:
@@ -116,9 +118,10 @@ class App(QObject):
   darkChanged = Signal()
   vaultChanged = Signal()
   needsSetupChanged = Signal()
+  stepChanged = Signal()
+  stepReady = Signal(str, str)
   themeChanged = Signal()
   semanticChanged = Signal()
-  syncChanged = Signal()
   updateChecked = Signal(str)
 
   def __init__(self, cfg, initial_note, families, bridge):
@@ -127,30 +130,209 @@ class App(QObject):
     self.initial = initial_note
     self.families = families
     self.bridge = bridge
+    self.account = account.load()
+    self.pending_key = None
+    self.cancel = threading.Event()
+    self.step = self.first_step()
+    self.error = ""
+    self.stepReady.connect(self.stepped)
+    if self.step == "recover":
+      QTimer.singleShot(0, self.resume)
     QGuiApplication.styleHints().colorSchemeChanged.connect(lambda scheme: self.darkChanged.emit())
+
+  # ---------------------------------------------------------------- setup
 
   @Property(bool, notify=needsSetupChanged)
   def needsSetup(self):
-    return not self.cfg["vault"]
+    return self.step != ""
 
-  @Property(str, constant=True)
-  def suggestedVault(self):
-    return config.default_vault().replace("\\", "/")
+  @Property(str, notify=stepChanged)
+  def setupStep(self):
+    """signin, waiting (the browser is open), newKey, recover, or "" once set up."""
+    return self.step
 
-  @Slot(str, bool)
-  def finishSetup(self, folder, semantic):
-    """The onboarding's answers: save them, start the engine, add the launcher and skill."""
-    folder = os.path.normpath(folder or config.default_vault())
-    os.makedirs(folder, exist_ok=True)
-    self.cfg["vault"] = folder
+  @Property(str, notify=stepChanged)
+  def setupError(self):
+    return self.error
+
+  @Property(str, notify=stepChanged)
+  def recoveryKey(self):
+    """Shown once while the new key is being set up, and on request after."""
+    key = self.pending_key or account.note_key(self.account)
+    return crypto.recovery_text(key) if key else ""
+
+  @Property(str, notify=stepChanged)
+  def email(self):
+    return self.account.get("email", "")
+
+  def go(self, step, error=""):
+    was = self.needsSetup
+    self.step, self.error = step, error
+    self.stepChanged.emit()
+    if was != self.needsSetup:
+      self.needsSetupChanged.emit()
+
+  def first_step(self):
+    if not self.account.get("access"):
+      return "signin"
+    return "" if account.note_key(self.account) else "recover"
+
+  def in_background(self, work):
+    """Network calls off the UI thread; `work` returns the next step and an error."""
+    def run():
+      try:
+        step, error = work()
+      except account.Offline:
+        step, error = self.step if self.step != "waiting" else "signin", "Couldn't reach the Savi AI Core. Check your connection and try again."
+      except account.SignedOut:
+        self.account = {}
+        account.clear()
+        step, error = "signin", "Your sign-in has expired. Sign in again."
+      except Exception as e:
+        step, error = self.step if self.step != "waiting" else "signin", str(e)
+      self.stepReady.emit(step, error)
+    threading.Thread(target=run, daemon=True).start()
+
+  @Slot(bool)
+  def signIn(self, semantic):
     self.cfg["semantic"] = bool(semantic)
     config.save(self.cfg)
-    self.bridge.start(folder)
+    self.cancel = threading.Event()
+    self.go("waiting")
+
+    def work():
+      try:
+        signed = account.sign_in(self.cfg["gateway"], self.cancel)
+      except account.Cancelled:
+        return "signin", ""
+      client = account.Client(signed)
+      vault = client.call("GET", "/vault")
+      kept = account.note_key(self.account) if self.account.get("email") == vault["email"] else None
+      self.account = {**signed, "email": vault["email"]}
+      if vault["key_check"] is None:
+        self.pending_key = crypto.new_key()
+        account.save(self.account)
+        return "newKey", ""
+      if kept and crypto.opens(kept, vault["key_check"]):
+        self.account["key"] = base64.b64encode(kept).decode()
+        account.save(self.account)
+        return "", ""
+      account.save(self.account)
+      return "recover", ""
+    self.in_background(work)
+
+  def resume(self):
+    """Signed in last time but closed before the key was set: find out which step that was."""
+    self.go("waiting")
+
+    def work():
+      if account.Client(self.account).call("GET", "/vault")["key_check"] is None:
+        self.pending_key = crypto.new_key()
+        return "newKey", ""
+      return "recover", ""
+    self.in_background(work)
+
+  @Slot()
+  def cancelSignIn(self):
+    self.cancel.set()
+
+  @Slot()
+  def keySaved(self):
+    """The person has the recovery key somewhere safe: store the key and say so to the AI Core."""
+    key = self.pending_key
+
+    def work():
+      try:
+        account.Client(self.account).call("PUT", "/vault", {"key_check": crypto.key_check(key)})
+      except account.Refused as e:
+        if e.status == 409:
+          self.pending_key = None
+          return "recover", "Another device finished setting up first. Enter the recovery key it showed."
+        raise
+      self.keep(key)
+      return "", ""
+    self.in_background(work)
+
+  @Slot(str)
+  def recover(self, text):
+    def work():
+      try:
+        key = crypto.parse_recovery(text)
+      except crypto.WrongKey:
+        return "recover", "That isn't a recovery key. It's 52 letters and numbers in groups of four."
+      check = account.Client(self.account).call("GET", "/vault")["key_check"]
+      if check is None:
+        self.pending_key = crypto.new_key()
+        return "newKey", "Your notes were reset on another device, so this account starts fresh."
+      if not crypto.opens(key, check):
+        return "recover", "That recovery key doesn't open these notes. Check it and try again."
+      self.keep(key)
+      return "", ""
+    self.in_background(work)
+
+  @Slot()
+  def startOver(self):
+    """For a lost recovery key: the notes on the AI Core can't be opened any more, so clear them."""
+    def work():
+      account.Client(self.account).call("DELETE", "/vault")
+      self.forget_local()
+      self.pending_key = crypto.new_key()
+      return "newKey", ""
+    self.in_background(work)
+
+  def keep(self, key):
+    self.pending_key = None
+    self.account["key"] = base64.b64encode(key).decode()
+    account.save(self.account)
+
+  def stepped(self, step, error):
+    """Back on the UI thread with the outcome of a background step."""
+    self.go(step, error)
+    if step == "":
+      self.start_engine()
+
+  def start_engine(self):
+    import_legacy(self.cfg)
+    os.makedirs(config.vault_dir(), exist_ok=True)
+    self.bridge.start(config.vault_dir())
     from . import shortcuts, skill
     skill.install()
     shortcuts.install()
-    self.vaultChanged.emit()
-    self.needsSetupChanged.emit()
+
+  def forget_local(self):
+    """This computer's copy, which signing out or starting over must not leave behind."""
+    from . import sync
+    shutil.rmtree(config.vault_dir(), ignore_errors=True)
+    for leftover in (sync.state_path(),):
+      if os.path.exists(leftover):
+        os.remove(leftover)
+
+  @Slot()
+  def signOut(self):
+    """Called once the engine has said nothing is left to send."""
+    self.bridge.stop()
+    self.forget_local()
+    self.account = {}
+    account.clear()
+    self.go("signin")
+
+  @Slot(str)
+  def accountLost(self, state):
+    """The engine found the sign-in revoked, or the notes sealed under a different key."""
+    self.bridge.stop()
+    if state == "wrongKey":
+      self.account.pop("key", None)
+      account.save(self.account)
+      self.forget_local()
+      self.go("recover", "Your notes were set up again on another device. Enter the new recovery key.")
+    else:
+      self.account = {k: v for k, v in self.account.items() if k in ("email", "key", "gateway")}
+      account.save(self.account)
+      self.go("signin", "Sign in again to keep syncing your notes.")
+
+  @Slot(str)
+  def copy(self, text):
+    QGuiApplication.clipboard().setText(text)
 
   @Property(str, constant=True)
   def home(self):
@@ -183,7 +365,7 @@ class App(QObject):
 
   @Property(str, notify=vaultChanged)
   def vault(self):
-    return self.cfg["vault"].replace("\\", "/")
+    return config.vault_dir().replace("\\", "/")
 
   @Property(str, constant=True)
   def initialNote(self):
@@ -210,29 +392,6 @@ class App(QObject):
     config.save(self.cfg)
     self.semanticChanged.emit()
     self.bridge.send(json.dumps({"id": 0, "op": "settings"}))
-
-  @Property(bool, notify=syncChanged)
-  def sync(self):
-    return bool(self.cfg.get("sync", True))
-
-  @Slot(bool)
-  def setSync(self, on):
-    self.cfg["sync"] = bool(on)
-    config.save(self.cfg)
-    self.syncChanged.emit()
-    self.bridge.send(json.dumps({"id": 0, "op": "settings"}))
-
-  @Slot(str)
-  def setVault(self, folder):
-    """Move to another notes folder: the engine restarts on it."""
-    folder = os.path.normpath(folder)
-    if not folder or folder == self.cfg["vault"]:
-      return
-    os.makedirs(folder, exist_ok=True)
-    self.cfg["vault"] = folder
-    config.save(self.cfg)
-    self.bridge.restart(folder)
-    self.vaultChanged.emit()
 
   @Slot()
   def checkUpdates(self):
@@ -264,7 +423,7 @@ class App(QObject):
       escaped = title.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
       doc = QTextDocument()
       doc.setDefaultFont(QFont(self.families["ui"], 11))
-      doc.setBaseUrl(QUrl.fromLocalFile(self.cfg["vault"] + "/"))
+      doc.setBaseUrl(QUrl.fromLocalFile(config.vault_dir() + "/"))
       doc.setHtml("<h1>%s</h1>%s" % (escaped, html))
       writer = QPdfWriter(out)
       writer.setTitle(title)
@@ -282,8 +441,7 @@ class App(QObject):
   def runUpdate(self, version):
     """Install the release once this window has closed, then reopen."""
     command = update.install_command(version)
-    launcher = sys.argv[0] if os.path.isabs(sys.argv[0]) else (
-      __import__("shutil").which("savi-notes") or "savi-notes")
+    launcher = sys.argv[0] if os.path.isabs(sys.argv[0]) else (shutil.which("savi-notes") or "savi-notes")
     if not command:
       QGuiApplication.instance().quit()
       return
@@ -319,10 +477,21 @@ def check_updates(app_obj):
     app_obj.updateAvailable.emit(found[0], found[1])
 
 
+def import_legacy(cfg):
+  """0.1 kept notes in a folder the person chose. The first time this version runs, a copy
+  of that folder becomes the local copy, and from there goes up to the AI Core. The old
+  folder is left as it was."""
+  old = cfg.pop("vault", "")
+  cfg.pop("sync", None)
+  config.save(cfg)
+  new = config.vault_dir()
+  if not old or not os.path.isdir(old) or (os.path.isdir(new) and os.listdir(new)):
+    return
+  shutil.copytree(old, new, ignore=shutil.ignore_patterns(".*"), dirs_exist_ok=True)
+
+
 def run(note=""):
   cfg = config.load()
-  if cfg["vault"] and not os.path.isdir(cfg["vault"]):
-    os.makedirs(cfg["vault"], exist_ok=True)
 
   QQuickStyle.setStyle("Basic")
   QGuiApplication.setApplicationName("Savi Notes")
@@ -350,8 +519,9 @@ def run(note=""):
 
   bridge = EngineBridge()
   app_obj = App(cfg, note, {"ui": ui_family, "mono": mono_family, "icon": icon_family}, bridge)
-  if cfg["vault"]:
-    bridge.start(cfg["vault"])
+  if not app_obj.needsSetup:
+    import_legacy(cfg)
+    bridge.start(config.vault_dir())
     from . import skill
     skill.install()
 

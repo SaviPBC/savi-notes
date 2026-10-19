@@ -2,7 +2,6 @@
 
 import os
 import re
-import subprocess
 
 MEDIA = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".heic", ".pdf", ".canvas")
 TAGS_LINE = re.compile(r"^tags:\s*\S", re.M)
@@ -54,20 +53,13 @@ def run(root):
     ("Links to notes that don't exist", sorted(t for t in targets if t.lower() not in titles)),
   ]
 
-  if os.path.isdir(os.path.join(root, ".git")):
-    git = ["git", "-C", root]
-    lines = []
-    try:
-      status = subprocess.run(git + ["status", "--short"], capture_output=True, text=True, timeout=30).stdout
-      counts = {}
-      for line in status.splitlines():
-        counts[line[:2].strip() or "?"] = counts.get(line[:2].strip() or "?", 0) + 1
-      lines.append("  ".join("%s %d" % item for item in sorted(counts.items())) or "clean")
-      if subprocess.run(git + ["fetch", "-q"], capture_output=True, timeout=30).returncode == 0:
-        behind = subprocess.run(git + ["rev-list", "--count", "HEAD..@{upstream}"], capture_output=True, text=True).stdout.strip()
-        ahead = subprocess.run(git + ["rev-list", "--count", "@{upstream}..HEAD"], capture_output=True, text=True).stdout.strip()
-        lines.append("behind remote: %s  ahead: %s" % (behind or "?", ahead or "?"))
-    except (OSError, subprocess.TimeoutExpired) as e:
-      lines.append("git: %s" % e)
-    sections.append(("Git", lines))
+  from . import account
+  if account.load().get("key"):
+    from .engine import Vault
+    from .sync import Sync
+    vault = Vault(root)
+    vault.scan()
+    waiting = [item[2] if item[0] in ("note", "file") else "(a deletion)"
+               for item in Sync(vault, lambda message: None, lambda: None).pending()]
+    sections.append(("Changes not yet synced to the AI Core (the app sends them while it's open)", waiting))
   return sections

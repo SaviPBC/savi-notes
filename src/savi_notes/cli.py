@@ -12,7 +12,7 @@ USAGE = """savi-notes [NOTE]           open Savi Notes, or the named note
 savi-notes search QUERY...  rank notes by title, words and meaning
 savi-notes tags             the tags in use, with counts
 savi-notes format           the markdown the app renders (for writing notes)
-savi-notes vault            the notes folder
+savi-notes vault            this computer's copy of the notes
 savi-notes check            look for untitled, untagged or badly placed notes
 savi-notes index            bring the meaning-search index up to date
 savi-notes skill            install the Claude Code skill (the app does this too)
@@ -22,9 +22,9 @@ savi-notes version
 
 
 def vault_or_exit():
-  vault = config.load()["vault"]
-  if not vault or not os.path.isdir(vault):
-    sys.stderr.write("savi-notes: no notes folder yet; open Savi Notes once to choose one\n")
+  vault = config.vault_dir()
+  if not os.path.isdir(vault):
+    sys.stderr.write("savi-notes: no notes yet; open Savi Notes and sign in first\n")
     sys.exit(2)
   return vault
 
