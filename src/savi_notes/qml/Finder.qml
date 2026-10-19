@@ -29,6 +29,7 @@ Item {
     { label: "Open note split down", glyph: 0xf0bcb, run: function() { app.openSplit("down") } }
   ].concat(app.panes.length > 1 ? [{ label: "Close split", glyph: 0xf0158, run: function() { app.closePane(app.activePane) } }] : []).concat([
     { label: "Export as PDF", glyph: 0xf0226, hint: Style.ctrl + "+Shift+E", run: function() { app.exportPdf() } },
+    { label: "Export as Markdown", glyph: 0xf0354, run: function() { app.exportMarkdown() } },
     { label: onArticle ? "Delete article" : "Delete note", glyph: 0xf09e7, danger: true, run: function() { app.confirmDelete() } }
   ]))
   // Settings rows stay open after Enter, so the new value shows.
@@ -36,6 +37,7 @@ Item {
     { label: "Theme", glyph: 0xf0594, hint: { system: "System", dark: "Dark", light: "Light" }[App.theme], stay: true,
       run: function() { App.setTheme({ system: "dark", dark: "light", light: "system" }[App.theme]) } },
     { label: "Find notes by meaning", glyph: 0xf0349, hint: App.semantic ? "On" : "Off", stay: true, run: function() { App.setSemantic(!App.semantic) } },
+    { label: "Export all notes", glyph: 0xf0207, hint: "A folder of Markdown files", run: function() { app.exportAll() } },
     { label: "Copy recovery key", glyph: 0xf0306, hint: "For your other computers", run: function() { App.copy(App.recoveryKey); app.showStatus("Recovery key copied", false) } },
     { label: "Sign out", glyph: 0xf0343, hint: App.email, danger: true, run: function() { app.signOut() } },
     { label: "Check for updates", glyph: 0xf06b0, hint: "Savi Notes " + App.version, run: function() { App.checkUpdates() } }

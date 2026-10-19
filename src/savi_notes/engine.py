@@ -992,6 +992,10 @@ class Engine:
     if op == "delete":
       self.articles.delete(key)
       return {}
+    if op == "export":
+      with open(req["out"], "w", encoding="utf-8") as f:
+        f.write(self.articles.read(key)["body"])
+      return {}
     if op == "publish":
       return self.articles.publish(key)
     raise ValueError("articles can't do " + op)
@@ -1033,6 +1037,17 @@ class Engine:
       v.delete(req["path"])
       self.edited()
       return {}
+    # The vault sits in the app's data folder, so these are how notes leave it as files.
+    if op == "export":
+      shutil.copyfile(v.path_of(req["path"]), req["out"])
+      return {}
+    if op == "exportAll":
+      base = os.path.join(req["folder"], "Savi Notes")
+      out, n = base, 2
+      while os.path.exists(out):
+        out, n = "%s %d" % (base, n), n + 1
+      shutil.copytree(v.root, out, ignore=shutil.ignore_patterns(".*", "*.savi-tmp"))
+      return {"folder": out.replace(os.sep, "/"), "notes": len(v.notes)}
     if op == "resolve":
       return {"path": v.by_title(req["title"]) or ""}
     if op == "assets":

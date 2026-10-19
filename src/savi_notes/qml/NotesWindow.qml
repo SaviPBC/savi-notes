@@ -557,6 +557,53 @@ Window {
     pdfDialog.open()
   }
 
+  function exportMarkdown() {
+    if (!window.current) return
+    window.exporting = window.activePane
+    mdDialog.currentFolder = Util.fileUrl(App.documents)
+    mdDialog.selectedFile = Util.fileUrl(App.documents + "/" + window.current.title + ".md")
+    mdDialog.open()
+  }
+
+  function exportAll() {
+    allDialog.currentFolder = Util.fileUrl(App.documents)
+    allDialog.open()
+  }
+
+  FileDialog {
+    id: mdDialog
+    title: "Export as Markdown"
+    fileMode: FileDialog.SaveFile
+    nameFilters: ["Markdown (*.md)"]
+    onAccepted: {
+      var pane = window.exporting
+      if (!pane || !pane.path) return
+      var out = App.localPath(String(selectedFile))
+      if (!/\.md$/i.test(out)) out += ".md"
+      pane.save(function() {
+        engine.call("export", { path: pane.path, out: out }, function(reply) {
+          if (reply.error) { window.showStatus("Export failed: " + reply.error, true); return }
+          window.showStatus("Exported " + out.split(/[\\/]/).pop(), false)
+        })
+      })
+    }
+  }
+
+  FolderDialog {
+    id: allDialog
+    title: "Export all notes into…"
+    onAccepted: {
+      var folder = App.localPath(String(selectedFolder))
+      saveAll(function() {
+        engine.call("exportAll", { folder: folder }, function(reply) {
+          if (reply.error) { window.showStatus("Export failed: " + reply.error, true); return }
+          window.showStatus("Exported " + reply.notes + (reply.notes === 1 ? " note" : " notes") + " to " + reply.folder.replace(App.home, "~"), false)
+          Qt.openUrlExternally(Util.fileUrl(reply.folder))
+        })
+      })
+    }
+  }
+
   FileDialog {
     id: pdfDialog
     title: "Export as PDF"

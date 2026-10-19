@@ -47,7 +47,11 @@ launcher (Linux), and installs the Claude Code skill at
   finder has an **Articles** tab: open one to read or edit it, and leaving the
   editor publishes it.
 - Settings live in the finder's **Settings** tab: theme, meaning search,
-  copying your recovery key, signing out, and checking for updates.
+  exporting all notes, copying your recovery key, signing out, and checking
+  for updates.
+- Your notes are always yours as files: **Export as Markdown** (in a note's
+  This file actions) saves one, and **Export all notes** saves a folder of
+  every note and attachment.
 
 Claude Code picks up the skill on its next start. Then "put this in a note",
 "find my note about X" or "check my notes" just work; `savi-notes search`,
