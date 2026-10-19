@@ -10,6 +10,10 @@ prints its path. They read and write them in the Savi Notes app, which
 organises notes by **tags, not folders**, and picks up edits made on disk
 while it is open. "A note" with no other place named always means a note here.
 
+The vault is this computer's copy. The app syncs it through the Savi AI Core,
+encrypted on the device first, so edits made here reach the user's other
+computers while the app is open.
+
 The `savi-notes` command works the same in a Unix shell and in PowerShell.
 
 ## Layout
@@ -77,16 +81,13 @@ asks to save one elsewhere, put it there and say why.
 Run `savi-notes check`. It is read-only and reports Untitled notes, notes
 outside the vault root, media outside `Attachments/`, untagged and `inbox`
 notes, key-shaped strings outside credential notes, links to notes that don't
-exist and, for a git vault, its state. Summarize what it found and offer to
-fix it.
+exist, and changes not yet synced. Summarize what it found and offer to fix it.
 
 ## Syncing
 
-If the vault is a git repository with a remote, the app commits, pulls and
-pushes by itself while it is open, and stops without touching anything when a
-pull conflicts. To sync by hand, run in the vault: `git add -A`, `git commit`,
-`git pull --rebase`, `git push`. On a rebase conflict, read both sides of each
-note and merge so no text from either is lost; keep both versions under a
-short "Conflict: from <side>" marker when they can't be reconciled, and tell
-the user. Never force-push, never `git reset --hard`, never drop a commit to
-get past a conflict.
+The app syncs by itself while it is open; there is nothing to run. When the
+same note changed on two computers, the app keeps the text from this one and
+saves the other as "Title (conflict DATE)". When the user asks, merge the two
+so no text from either is lost, then delete the conflict copy to the trash.
+Never edit files under the app's data folder other than notes and attachments
+in the vault.
