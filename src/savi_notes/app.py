@@ -18,7 +18,7 @@ from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuickControls2 import QQuickStyle
 
-from . import __version__, account, config, crypto, update
+from . import __version__, account, config, crypto, macos, update
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 QML_DIR = os.path.join(HERE, "qml")
@@ -511,6 +511,7 @@ def import_legacy(cfg):
 def run(note=""):
   cfg = config.load()
 
+  macos.name_app()
   QQuickStyle.setStyle("Basic")
   QGuiApplication.setApplicationName("Savi Notes")
   QGuiApplication.setOrganizationName("Savi")
@@ -551,6 +552,7 @@ def run(note=""):
     def read():
       for line in bytes(sock.readAll()).decode("utf-8", "replace").splitlines():
         try:
+          macos.bring_forward()
           app_obj.openRequested.emit(str(json.loads(line).get("open") or ""))
         except ValueError:
           pass
@@ -565,6 +567,10 @@ def run(note=""):
   if not engine.rootObjects():
     sys.stderr.write("savi-notes: the window could not be created\n")
     return 1
+  macos.bring_forward()
+  from . import shortcuts
+  if not app_obj.needsSetup:
+    shortcuts.install()
 
   if not os.environ.get("SAVI_NOTES_NO_UPDATE_CHECK"):
     threading.Thread(target=check_updates, args=(app_obj,), daemon=True).start()

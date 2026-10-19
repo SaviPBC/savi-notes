@@ -115,5 +115,23 @@ def main(argv=None):
     return cmd_help([]) or 0
   if argv and argv[0] in COMMANDS:
     return COMMANDS[argv[0]](argv[1:]) or 0
+  if not os.environ.get("SAVI_NOTES_FOREGROUND"):
+    return detach(argv)
   from .app import run
   return run(" ".join(argv))
+
+
+def detach(argv):
+  """The window runs as its own process, so the terminal (or Claude Code) that started it
+  gets its prompt back. What it prints goes to a log in the cache folder."""
+  python = sys.executable
+  flags = {"start_new_session": True}
+  if sys.platform == "win32":
+    windowless = os.path.join(os.path.dirname(python), "pythonw.exe")
+    python = windowless if os.path.exists(windowless) else python
+    flags = {"creationflags": subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP}
+  os.makedirs(config.cache_dir(), exist_ok=True)
+  log = open(os.path.join(config.cache_dir(), "savi-notes.log"), "ab")
+  subprocess.Popen([python, "-m", "savi_notes", *argv], env=dict(os.environ, SAVI_NOTES_FOREGROUND="1"),
+                   stdin=subprocess.DEVNULL, stdout=log, stderr=log, **flags)
+  return 0

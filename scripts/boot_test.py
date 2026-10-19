@@ -18,7 +18,7 @@ account.clear()
 
 
 def boot(*args):
-  env = dict(os.environ, QT_QPA_PLATFORM="offscreen", SAVI_NOTES_NO_UPDATE_CHECK="1")
+  env = dict(os.environ, QT_QPA_PLATFORM="offscreen", SAVI_NOTES_NO_UPDATE_CHECK="1", SAVI_NOTES_FOREGROUND="1")
   proc = subprocess.Popen([sys.executable, "-m", "savi_notes", *args], env=env,
                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
   time.sleep(10)

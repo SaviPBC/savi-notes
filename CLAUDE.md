@@ -64,7 +64,10 @@ exception: company content, plaintext, edited through the gateway.
   (per-OS llama.cpp download from a pinned release), `mathsvg.py`, `update.py`, `skill.py`
   (installs `skill/SKILL.md` into `~/.claude/skills/savi-notes`, re-copied
   on every launch when it differs), `shortcuts.py` (Start Menu / `.app` /
-  `.desktop`), `vaultcheck.py` (`savi-notes check`), `FORMAT.md` (every
+  `.desktop`, refreshed on every launch, writing only what changed),
+  `macos.py` (names the process "Savi Notes" and brings it forward; PyObjC,
+  macOS only), `icon.icns` (from `icon.svg` by `scripts/make_icns.py`;
+  rerun it after changing the icon), `vaultcheck.py` (`savi-notes check`), `FORMAT.md` (every
   markdown syntax the renderer supports; the skill reads it through
   `savi-notes format`), `fonts/` (Nerd Font symbols, MIT), `icon.svg` (Savi's
   V mark, colours from app.bysavi.com's favicon).
@@ -77,7 +80,7 @@ exception: company content, plaintext, edited through the gateway.
 
 ```sh
 uv sync                       # Python 3.13; PySide6-Essentials, numpy, send2trash, platformdirs, ziamath, cryptography
-uv run savi-notes             # or: uv run savi-notes "Note title"
+uv run savi-notes             # or: uv run savi-notes "Note title"; returns at once, the window runs on its own
 uv run python scripts/sync_test.py
 uv run python scripts/boot_test.py
 uv build                      # the wheel must include qml/, fonts/, skill/, FORMAT.md, icon.svg
@@ -87,7 +90,9 @@ On this machine `uv` comes from mise: `mise x uv@0.13.0 -- uv …`. For tests,
 point `XDG_CONFIG_HOME`, `XDG_DATA_HOME` and `XDG_CACHE_HOME` at a scratch
 directory so Ross's real settings, model download and launcher entry are not
 touched; the boot test writes the config it finds, so always run it with a
-scratch config dir. Never `pkill -f savi_notes`: it matches the engine and
+scratch config dir. `savi-notes` detaches the window into its own process
+(output in `cache_dir()/savi-notes.log`); set `SAVI_NOTES_FOREGROUND=1` to
+keep it attached, as the boot test does. Never `pkill -f savi_notes`: it matches the engine and
 the shell running the command. Kill the window by PID (`hyprctl clients -j`).
 
 Against a real gateway: run the `RM/PE-7252/savi-notes` worktree
