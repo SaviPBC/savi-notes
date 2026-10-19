@@ -471,6 +471,12 @@ Window {
     content.forceActiveFocus()
   }
 
+  function confirmSignOut() {
+    signOutDialog.selectedIndex = 0
+    signOutDialog.opened = true
+    content.forceActiveFocus()
+  }
+
   function showTag(tag) {
     finder.open("notes", [tag])
   }
@@ -555,6 +561,7 @@ Window {
     pdfDialog.currentFolder = Util.fileUrl(App.documents)
     pdfDialog.selectedFile = Util.fileUrl(App.documents + "/" + window.current.title + ".pdf")
     pdfDialog.open()
+    App.fillFileName(window.current.title + ".pdf")
   }
 
   function exportMarkdown() {
@@ -563,6 +570,7 @@ Window {
     mdDialog.currentFolder = Util.fileUrl(App.documents)
     mdDialog.selectedFile = Util.fileUrl(App.documents + "/" + window.current.title + ".md")
     mdDialog.open()
+    App.fillFileName(window.current.title + ".md")
   }
 
   function exportAll() {
@@ -663,6 +671,7 @@ Window {
 
     Keys.onPressed: function(event) {
       if (deleteDialog.opened) { event.accepted = deleteDialog.handleKey(event); return }
+      if (signOutDialog.opened) { event.accepted = signOutDialog.handleKey(event); return }
       if (updateDialog.opened) { event.accepted = updateDialog.handleKey(event); return }
       event.accepted = window.shortcut(event)
     }
@@ -703,6 +712,17 @@ Window {
       confirmText: "Delete"
       onCanceled: { opened = false; window.restoreFocus() }
       onConfirmed: { opened = false; window.deleteNote() }
+    }
+
+    ConfirmDialog {
+      id: signOutDialog
+      anchors.fill: parent
+      z: 2000
+      message: "Sign out? This computer's copy of your notes is removed, and signing in again needs your recovery key. If you haven't saved it, copy it from Settings first."
+      cancelText: "Stay signed in"
+      confirmText: "Sign out"
+      onCanceled: { opened = false; window.restoreFocus() }
+      onConfirmed: { opened = false; window.signOut() }
     }
 
     Onboarding {

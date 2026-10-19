@@ -39,7 +39,7 @@ Item {
     { label: "Find notes by meaning", glyph: 0xf0349, hint: App.semantic ? "On" : "Off", stay: true, run: function() { App.setSemantic(!App.semantic) } },
     { label: "Export all notes", glyph: 0xf0207, hint: "A folder of Markdown files", run: function() { app.exportAll() } },
     { label: "Copy recovery key", glyph: 0xf0306, hint: "For your other computers", run: function() { App.copy(App.recoveryKey); app.showStatus("Recovery key copied", false) } },
-    { label: "Sign out", glyph: 0xf0343, hint: App.email, danger: true, run: function() { app.signOut() } },
+    { label: "Sign out", glyph: 0xf0343, hint: App.email, danger: true, run: function() { app.confirmSignOut() } },
     { label: "Check for updates", glyph: 0xf06b0, hint: "Savi Notes " + App.version, run: function() { App.checkUpdates() } }
   ]
   readonly property bool actionTab: tab === "file" || tab === "settings"
@@ -578,20 +578,6 @@ Item {
       height: Style.space(34)
 
       Rectangle { width: parent.width; height: 1; color: Util.alpha(Colors.foreground, 0.08) }
-
-      Text {
-        anchors.left: parent.left
-        anchors.leftMargin: Style.space(16)
-        anchors.right: counts.left
-        anchors.rightMargin: Style.space(12)
-        anchors.verticalCenter: parent.verticalCenter
-        readonly property var shownNote: finder.tab === "file" ? app.current : finder.tab === "settings" ? null : finder.selectedNote
-        text: !shownNote ? "" : shownNote.article ? shownNote.department + " internal article · " + shownNote.path.slice(9)
-            : (app.vault + "/" + shownNote.path).replace(App.home, "~")
-        color: Util.alpha(Colors.foreground, 0.45)
-        font.pixelSize: Style.font.caption
-        elide: Text.ElideMiddle
-      }
 
       Text {
         id: counts

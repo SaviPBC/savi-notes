@@ -86,7 +86,7 @@ Item {
               readonly property bool red: root.destructive && index === 1
               readonly property color tone: red ? Colors.urgent : Colors.accent
 
-              width: Style.space(88)
+              width: Math.max(Style.space(88), label.implicitWidth + Style.space(24))
               height: Style.space(34)
               radius: Math.max(Style.cornerRadius, Style.space(8))
               color: selected ? Util.alpha(tone, 0.2) : "transparent"
@@ -94,6 +94,7 @@ Item {
               border.color: selected ? tone : Util.alpha(Colors.foreground, 0.38)
 
               Text {
+                id: label
                 textFormat: Text.PlainText
                 anchors.centerIn: parent
                 text: parent.modelData

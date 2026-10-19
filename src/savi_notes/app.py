@@ -331,6 +331,24 @@ class App(QObject):
       self.go("signin", "Sign in again to keep syncing your notes.")
 
   @Slot(str)
+  def fillFileName(self, name):
+    """Qt's own save dialog, used where there is no native one (Linux without a portal), shows
+    an empty name however selectedFile is set; native dialogs fill it in themselves. So put it
+    in the dialog's name box once the dialog is up, if there is such a box."""
+    def fill(tries):
+      for window in QGuiApplication.allWindows():
+        stack = [window.contentItem()] if hasattr(window, "contentItem") else []
+        while stack:
+          item = stack.pop()
+          if item.objectName() == "fileNameTextField":
+            item.setProperty("text", name)
+            return
+          stack.extend(item.childItems())
+      if tries:
+        QTimer.singleShot(50, lambda: fill(tries - 1))
+    fill(10)
+
+  @Slot(str)
   def copy(self, text):
     QGuiApplication.clipboard().setText(text)
 
