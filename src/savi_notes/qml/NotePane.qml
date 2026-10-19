@@ -16,6 +16,19 @@ QtObject {
   property var embeds: ({})
   property bool editing: false
   property bool dirty: false
+  readonly property bool isArticle: path.indexOf("articles:") === 0
+
+  // An article publishes when its editor is left, not as it is typed: each publish
+  // re-indexes it for everyone's Claude.
+  onEditingChanged: if (!editing && isArticle) save(function() {
+    app.call("publish", { path: pane.path }, function(reply) {
+      if (reply.error) { app.showStatus(reply.error, true); return }
+      if (reply.published) {
+        app.showStatus("Published to " + reply.department + "; Claude can search it in a few minutes", false)
+        app.loadArticles()
+      }
+    })
+  })
 
   property Timer saveTimer: Timer {
     interval: 700
@@ -83,6 +96,7 @@ QtObject {
       app.call("rename", { path: from, title: title }, function(reply) {
         if (reply.error) { app.showStatus(reply.error, true); return }
         app.noteMoved(from, reply.path)
+        if (pane.isArticle) app.loadArticles()
         app.reload()
         if (reply.updated > 0) app.showStatus("Updated links in " + reply.updated + " note" + (reply.updated > 1 ? "s" : ""), false)
       })
@@ -96,8 +110,9 @@ QtObject {
     pane.dirty = false
     app.call("delete", { path: target }, function(reply) {
       if (reply.error) { app.showStatus(reply.error, true); return }
-      app.showStatus("Moved " + name + " to the trash", false)
+      app.showStatus(pane.isArticle ? "Deleted " + name + " from internal articles" : "Moved " + name + " to the trash", false)
       app.noteDeleted(target)
+      if (target.indexOf("articles:") === 0) app.loadArticles()
       app.reload()
     })
   }

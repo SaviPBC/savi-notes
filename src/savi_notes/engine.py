@@ -35,7 +35,7 @@ import urllib.request
 
 import numpy as np
 
-from . import config, llama, mathsvg
+from . import account, config, llama, mathsvg
 from .sync import Sync
 
 try:
@@ -850,6 +850,84 @@ class Assets:
     width, height = (float(m.group(1)), float(m.group(2))) if m else (600, 400)
     return {"file": stem + ".svg", "printFile": stem + "-print.svg", "width": width, "height": height}
 
+# ------------------------------------------------------------------ articles
+
+ARTICLE = "articles:"
+
+
+class Articles:
+  """The finder's Articles tab: internal articles of the departments this person edits on the
+  AI Core. They are company content everyone's Claude searches, not personal notes, so they are
+  plaintext and live on the gateway only. An open article's edits stay a draft here until the
+  editor is left, because publishing re-indexes it for everyone."""
+
+  def __init__(self, sync):
+    self.sync = sync
+    self.open = {}
+
+  def listing(self):
+    if not self.sync.enabled:
+      return []
+    try:
+      departments = self.sync.client.call("GET", "/articles")["departments"]
+    except (account.Offline, account.Refused, account.SignedOut):
+      return []
+    rows = [{"path": ARTICLE + a["key"], "title": a["title"], "department": d["name"], "status": a["status"],
+             "mtime": int(datetime.datetime.fromisoformat(a["updated_at"]).timestamp()) if a["updated_at"] else 0}
+            for d in departments for a in d["articles"]]
+    return {"departments": [d["name"] for d in departments], "articles": rows}
+
+  def read(self, key):
+    if key not in self.open:
+      self.open[key] = {**self.sync.client.call("GET", "/articles/" + urllib.parse.quote(key)), "draft": None}
+    article = self.open[key]
+    return {"path": ARTICLE + key, "body": article["draft"] if article["draft"] is not None else article["body"],
+            "tags": [], "embeds": {}}
+
+  def create(self, key, department, title):
+    self.open[key] = {"key": key, "department": department, "title": title, "body": "", "updated_at": None, "draft": ""}
+
+  def save(self, key, body):
+    self.open[key]["draft"] = body
+
+  def rename(self, key, title):
+    self.open[key]["title"] = title
+    self.open[key]["renamed"] = True
+    return self.publish(key)
+
+  def publish(self, key):
+    """Sends the draft, if there is one. A colleague's newer save is a conflict, not overwritten."""
+    article = self.open.get(key)
+    if not article:
+      return {}
+    text = article["draft"] if article["draft"] is not None else article["body"]
+    if not text.strip() or (text == article["body"] and not article.get("renamed")):
+      return {}
+    try:
+      saved = self.sync.client.call("PUT", "/articles/" + urllib.parse.quote(key), {
+        "department": article["department"], "title": article["title"], "body": text, "base_updated_at": article["updated_at"]})
+    except account.Refused as e:
+      if e.status == 409 and isinstance(e.body, dict) and e.body.get("error") == "conflict":
+        self.open.pop(key)  # so reopening shows their version, not this draft
+        raise ValueError("%s changed since you opened it. Copy your edits, then reopen it to see theirs." % article["title"])
+      if e.status == 409:
+        raise ValueError("Another department already has an article at %s; choose another title." % key)
+      raise
+    self.open[key] = {**saved, "draft": None}
+    return {"published": saved["title"], "department": saved["department"]}
+
+  def delete(self, key):
+    self.sync.client.call("DELETE", "/articles/" + urllib.parse.quote(key))
+    self.open.pop(key, None)
+
+  def publish_all(self):
+    for key in list(self.open):
+      try:
+        self.publish(key)
+      except Exception as e:
+        sys.stderr.write("savi-notes engine: could not publish %s: %s\n" % (key, e))
+
+
 # ------------------------------------------------------------------ server
 
 class Engine:
@@ -859,6 +937,7 @@ class Engine:
     self.embedder = Embedder()
     self.index = Index(self.vault, self.embedder)
     self.sync = Sync(self.vault, emit, self.pulled)
+    self.articles = Articles(self.sync)
     self.assets = Assets(self.vault)
     self.index_timer = None
 
@@ -898,9 +977,35 @@ class Engine:
     self.reindex_soon()
     self.sync.soon()
 
+  def article(self, req):
+    """Ops on an articles: path go to the gateway, not the vault."""
+    op, key = req["op"], req["path"][len(ARTICLE):]
+    if op == "read":
+      return self.articles.read(key)
+    if op == "save":
+      if req.get("body") is not None:
+        self.articles.save(key, req["body"])
+      return {"note": None}
+    if op == "rename":
+      self.articles.rename(key, req["title"].strip())
+      return {"path": req["path"], "updated": 0}
+    if op == "delete":
+      self.articles.delete(key)
+      return {}
+    if op == "publish":
+      return self.articles.publish(key)
+    raise ValueError("articles can't do " + op)
+
   def handle(self, req):
     op = req.get("op")
     v = self.vault
+    if str(req.get("path", "")).startswith(ARTICLE):
+      return self.article(req)
+    if op == "articles":
+      return self.articles.listing() or {"departments": [], "articles": []}
+    if op == "newArticle":
+      self.articles.create(req["key"], req["department"], req["title"])
+      return {"path": ARTICLE + req["key"]}
     if op == "notes":
       if req.get("rescan"):
         v.scan()
@@ -973,6 +1078,7 @@ class Engine:
       if self.sync.timer:
         self.sync.timer.cancel()
       # The window is gone; send what is left before exiting.
+      self.articles.publish_all()
       self.sync.run()
 
 

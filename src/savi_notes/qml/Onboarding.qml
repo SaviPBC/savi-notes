@@ -210,7 +210,7 @@ FocusScope {
         text: App.recoveryKey
         readOnly: true
         selectByMouse: true
-        wrapMode: TextEdit.WrapAnywhere
+        wrapMode: TextEdit.Wrap
         color: Colors.foreground
         selectionColor: Util.alpha(Colors.accent, 0.4)
         font.family: Style.font.mono

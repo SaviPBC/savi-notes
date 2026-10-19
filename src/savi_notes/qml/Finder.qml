@@ -17,16 +17,20 @@ Item {
   property string pickCreate: ""
   // "This file" leads while a note is open.
   readonly property var tabs: (app.current ? [{ id: "file", label: "This file" }] : [])
-    .concat([{ id: "notes", label: "Notes" }, { id: "tags", label: "Tags" }, { id: "settings", label: "Settings" }])
-  readonly property var fileActions: [
-    { label: "Add tag", glyph: 0xf0722, run: function() { app.addTagFromFinder() } },
+    .concat([{ id: "notes", label: "Notes" }, { id: "tags", label: "Tags" }])
+    .concat(app.departments.length ? [{ id: "articles", label: "Articles" }] : [])
+    .concat([{ id: "settings", label: "Settings" }])
+  readonly property bool onArticle: !!app.current && !!app.current.article
+  readonly property var fileActions: (onArticle ? [] : [
+    { label: "Add tag", glyph: 0xf0722, run: function() { app.addTagFromFinder() } }
+  ]).concat([
     { label: "Rename", glyph: 0xf0455, run: function() { app.renameFromFinder() } },
     { label: "Open note split right", glyph: 0xf0bcc, run: function() { app.openSplit("right") } },
     { label: "Open note split down", glyph: 0xf0bcb, run: function() { app.openSplit("down") } }
   ].concat(app.panes.length > 1 ? [{ label: "Close split", glyph: 0xf0158, run: function() { app.closePane(app.activePane) } }] : []).concat([
     { label: "Export as PDF", glyph: 0xf0226, hint: Style.ctrl + "+Shift+E", run: function() { app.exportPdf() } },
-    { label: "Delete note", glyph: 0xf09e7, danger: true, run: function() { app.confirmDelete() } }
-  ])
+    { label: onArticle ? "Delete article" : "Delete note", glyph: 0xf09e7, danger: true, run: function() { app.confirmDelete() } }
+  ]))
   // Settings rows stay open after Enter, so the new value shows.
   readonly property var settingsRows: [
     { label: "Theme", glyph: 0xf0594, hint: { system: "System", dark: "Dark", light: "Light" }[App.theme], stay: true,
@@ -62,10 +66,25 @@ Item {
     })
     return starts.concat(contains)
   }
-  readonly property int rowCount: actionTab ? visibleActions.length : tab === "tags" ? visibleTags.length + (newTag ? 1 : 0) : app.visibleNotes.length + (offersCreate ? 1 : 0)
+  readonly property bool articleTab: tab === "articles"
+  readonly property var visibleArticles: {
+    var typed = app.query.trim().toLowerCase()
+    return app.articles.map(function(a) { return app.byPath[a.path] }).filter(function(a) {
+      return a && (!typed || (a.title + " " + a.department).toLowerCase().indexOf(typed) >= 0)
+    })
+  }
+  // A title no article has offers to start one, in each department this person edits.
+  readonly property var articleCreates: {
+    var typed = app.query.trim().toLowerCase()
+    if (!articleTab || !typed || app.articles.some(function(a) { return a.title.toLowerCase() === typed })) return []
+    return app.departments
+  }
+  readonly property int rowCount: actionTab ? visibleActions.length : tab === "tags" ? visibleTags.length + (newTag ? 1 : 0)
+    : articleTab ? visibleArticles.length + articleCreates.length : app.visibleNotes.length + (offersCreate ? 1 : 0)
   // The "New note" row leads the list; notes follow it.
   readonly property int noteOffset: offersCreate ? 1 : 0
-  readonly property var selectedNote: tab === "notes" ? app.visibleNotes[selected - noteOffset] || null : null
+  readonly property var selectedNote: tab === "notes" ? app.visibleNotes[selected - noteOffset] || null
+    : articleTab ? visibleArticles[selected] || null : null
 
   visible: opacity > 0
   opacity: opened ? 1 : 0
@@ -133,6 +152,20 @@ Item {
       searchInput.text = ""
       finder.tab = "notes"
       resetSelection()
+      return
+    }
+    if (articleTab) {
+      if (index >= visibleArticles.length) {
+        var department = articleCreates[index - visibleArticles.length]
+        var title = app.query.trim()
+        if (!department) return
+        close()
+        app.newArticle(department, title)
+        return
+      }
+      if (!visibleArticles[index]) return
+      close()
+      app.openNote(visibleArticles[index].path)
       return
     }
     if (app.searching) { pendingActivate = true; return }
@@ -364,7 +397,7 @@ Item {
           anchors.fill: parent
           verticalAlignment: Text.AlignVCenter
           visible: !searchInput.text
-          text: finder.picker ? "Find a note" : finder.tab === "settings" ? "Search settings" : finder.tab === "file" ? "Search actions" : finder.tab === "tags" ? "Search tags" : app.activeTags.length ? "Search these notes" : "Search or create"
+          text: finder.picker ? "Find a note" : finder.tab === "settings" ? "Search settings" : finder.tab === "file" ? "Search actions" : finder.tab === "tags" ? "Search tags" : finder.articleTab ? "Search or start an article" : app.activeTags.length ? "Search these notes" : "Search or create"
           color: Util.alpha(Colors.foreground, 0.4)
           font: searchInput.font
         }
@@ -432,8 +465,11 @@ Item {
         readonly property bool isTag: finder.tab === "tags"
         readonly property var action: finder.actionTab ? finder.visibleActions[index] || null : null
         readonly property var tagItem: isTag && index < finder.visibleTags.length ? finder.visibleTags[index] : null
-        readonly property bool isCreate: action ? false : isTag ? index >= finder.visibleTags.length : finder.offersCreate && index === 0
-        readonly property var note: action || isTag || isCreate ? null : app.visibleNotes[index - finder.noteOffset] || null
+        readonly property bool isArticleRow: finder.articleTab
+        readonly property bool isCreate: action ? false : isTag ? index >= finder.visibleTags.length
+          : isArticleRow ? index >= finder.visibleArticles.length : finder.offersCreate && index === 0
+        readonly property var note: action || isTag || isCreate ? null
+          : isArticleRow ? finder.visibleArticles[index] || null : app.visibleNotes[index - finder.noteOffset] || null
         readonly property bool chosen: !!tagItem && app.activeTags.indexOf(tagItem.tag) >= 0
         readonly property bool meaning: !!note && note.match === "meaning"
         width: list.width
@@ -465,6 +501,7 @@ Item {
           width: Math.min(implicitWidth, row.isCreate ? parent.width - Style.space(60) : parent.width * 0.5)
           text: row.action ? row.action.label
               : row.isCreate && row.isTag ? (app.current ? "Add #" + finder.newTag + " to " + app.current.title : "New note tagged #" + finder.newTag)
+              : row.isCreate && row.isArticleRow ? "New " + (finder.articleCreates[row.index - finder.visibleArticles.length] || "") + " article “" + app.query.trim() + "”"
               : row.isTag ? (row.tagItem ? row.tagItem.tag : "")
               : row.isCreate ? (finder.picker ? finder.pickCreate + " “" : "New note “") + app.query.trim() + "”"
               : row.note ? row.note.title : ""
@@ -523,6 +560,7 @@ Item {
         wrapMode: Text.Wrap
         visible: finder.rowCount === 0 && app.loaded
         text: finder.tab === "tags" ? (app.tagCounts.length ? "No tags match" : "No tags yet")
+            : finder.articleTab ? "No articles yet.\nType a title above to start one."
             : app.activeTags.length ? "No notes carry all of these tags"
             : "No notes yet.\nType a title above and press Enter."
         color: Util.alpha(Colors.foreground, 0.45)
@@ -546,7 +584,8 @@ Item {
         anchors.rightMargin: Style.space(12)
         anchors.verticalCenter: parent.verticalCenter
         readonly property var shownNote: finder.tab === "file" ? app.current : finder.tab === "settings" ? null : finder.selectedNote
-        text: shownNote ? (app.vault + "/" + shownNote.path).replace(App.home, "~") : ""
+        text: !shownNote ? "" : shownNote.article ? shownNote.department + " internal article · " + shownNote.path.slice(9)
+            : (app.vault + "/" + shownNote.path).replace(App.home, "~")
         color: Util.alpha(Colors.foreground, 0.45)
         font.pixelSize: Style.font.caption
         elide: Text.ElideMiddle

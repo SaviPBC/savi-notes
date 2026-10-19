@@ -16,6 +16,10 @@ Window {
 
   property var notes: []
   property var byPath: ({})
+  // Internal articles this person edits on the AI Core: the finder's Articles tab, shown
+  // only when there are departments. Each is listed in byPath too, so panes open them.
+  property var articles: []
+  property var departments: []
   property var byTitle: ({})
   property var tagCounts: []
   property var activeTags: []
@@ -108,6 +112,7 @@ Window {
 
   // Once there is a vault: list it and open the note asked for, or the finder.
   function start() {
+    loadArticles()
     reload(function() {
       window.loaded = true
       if (window.initialNote) window.openNamed(window.initialNote)
@@ -139,6 +144,8 @@ Window {
       window.loaded = false
       window.syncState = ""
       window.syncTime = 0
+      window.articles = []
+      window.departments = []
     }
     function onUpdateChecked(message) { window.showStatus(message, false) }
     function onUpdateAvailable(version, required) {
@@ -179,6 +186,41 @@ Window {
     }
   }
 
+  function articleEntry(a) {
+    return { path: a.path, title: a.title, tags: [], ownTags: [], backlinks: [], links: [],
+             snippet: a.department + (a.status === "ready" ? "" : " · " + a.status),
+             mtime: a.mtime, article: true, department: a.department, status: a.status }
+  }
+
+  function loadArticles() {
+    engine.call("articles", {}, function(reply) {
+      if (!reply.articles) return
+      var paths = Object.assign({}, window.byPath)
+      window.articles.forEach(function(a) { delete paths[a.path] })
+      reply.articles.forEach(function(a) { paths[a.path] = window.articleEntry(a) })
+      window.byPath = paths
+      window.articles = reply.articles
+      window.departments = reply.departments
+    })
+  }
+
+  // A new article is a draft until its editor is left, like any article edit.
+  function newArticle(department, title) {
+    var base = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 100) || "article"
+    var key = base, n = 2
+    while (window.byPath["articles:" + key]) key = base + "-" + n++
+    var pane = window.activePane
+    pane.save(function() {
+      engine.call("newArticle", { key: key, department: department, title: title }, function(reply) {
+        var paths = Object.assign({}, window.byPath)
+        paths[reply.path] = window.articleEntry({ path: reply.path, title: title, department: department, status: "draft", mtime: Date.now() / 1000 })
+        window.byPath = paths
+        pane.editing = true
+        pane.open(reply.path, function() { if (pane.view) pane.view.focusEditor() })
+      })
+    })
+  }
+
   function reload(done) {
     engine.call("notes", { rescan: true }, function(reply) {
       if (!reply.notes) return
@@ -188,6 +230,7 @@ Window {
         titles[n.title.toLowerCase()] = n.path
         n.tags.forEach(function(t) { counts[t] = (counts[t] || 0) + 1 })
       })
+      window.articles.forEach(function(a) { paths[a.path] = window.articleEntry(a) })
       window.notes = reply.notes
       window.byPath = paths
       window.byTitle = titles
@@ -606,7 +649,9 @@ Window {
       id: deleteDialog
       anchors.fill: parent
       z: 2000
-      message: "Move " + (window.current ? window.current.title : "this note") + " to the trash?"
+      message: window.current && window.current.article
+        ? "Delete " + window.current.title + " from " + window.current.department + "'s internal articles? Claude stops finding it."
+        : "Move " + (window.current ? window.current.title : "this note") + " to the trash?"
       cancelText: "Keep"
       confirmText: "Delete"
       onCanceled: { opened = false; window.restoreFocus() }

@@ -561,6 +561,7 @@ FocusScope {
         Rectangle {
           id: addTag
           property bool adding: false
+          visible: !view.note || !view.note.article
           width: adding ? Style.space(150) : addLabel.implicitWidth + Style.space(18)
           height: Style.space(24)
           radius: height / 2
@@ -653,7 +654,10 @@ FocusScope {
           if (!view.note) return ""
           var words = (pane.body.match(/\S+/g) || []).length
           var edited = Qt.formatDateTime(new Date(view.note.mtime * 1000), "MMM d, yyyy  h:mm ap")
-          return "Edited " + edited + "  ·  " + words + (words === 1 ? " word" : " words")
+          var count = words + (words === 1 ? " word" : " words")
+          if (view.note.article)
+            return view.note.department + " internal article  ·  " + (view.note.status === "draft" ? "not published yet" : "published " + edited) + "  ·  " + count
+          return "Edited " + edited + "  ·  " + count
         }
         color: Util.alpha(Colors.foreground, 0.4)
         font.pixelSize: Style.font.caption
