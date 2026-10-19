@@ -494,7 +494,8 @@ FocusScope {
           spacing: Style.space(6)
           IconButton {
             glyph: String.fromCodePoint(0xf01d9)
-            tip: "This file  Shift Shift"
+            tip: "Menu"
+            tipHint: "Press Shift twice"
             onActivated: app.openFileActions()
           }
         }

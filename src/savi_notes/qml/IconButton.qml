@@ -7,6 +7,7 @@ Item {
   id: iconButton
   property string glyph: ""
   property string tip: ""
+  property string tipHint: ""
   property bool highlighted: false
   signal activated()
 
@@ -46,5 +47,6 @@ Item {
   PanelToolTip {
     visible: iconMouse.containsMouse && iconButton.tip !== ""
     text: iconButton.tip
+    hint: iconButton.tipHint
   }
 }
