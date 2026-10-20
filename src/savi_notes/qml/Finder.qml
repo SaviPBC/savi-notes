@@ -288,25 +288,18 @@ Item {
         onActivated: { finder.close(); app.todaysNote() }
       }
       IconButton {
-        id: syncButton
         visible: app.syncEnabled
         glyph: app.syncState === "conflict" || app.syncState === "error" ? String.fromCodePoint(0xf04e7)
              : app.syncState === "offline" ? String.fromCodePoint(0xf0164)
              : String.fromCodePoint(0xf04e6)
-        highlighted: app.syncState === "running"
+        highlighted: busy
+        busy: app.syncState === "running"
         tip: app.syncState === "running" ? "Syncing…"
            : app.syncState === "offline" ? "Offline; will sync later"
            : app.syncState === "conflict" || app.syncState === "error" ? app.syncMessage
            : app.syncTime ? "Synced " + finder.relativeTime(app.syncTime) + (finder.relativeTime(app.syncTime) === "now" ? "" : " ago") + "; click to sync now"
            : "Sync now"
         onActivated: app.syncNow()
-
-        RotationAnimator on rotation {
-          running: app.syncState === "running"
-          from: 0; to: -360; duration: 1100
-          loops: Animation.Infinite
-          onStopped: syncButton.rotation = 0
-        }
       }
       IconButton {
         glyph: String.fromCodePoint(0xf039d)
@@ -417,22 +410,13 @@ Item {
 
       // Shown only once a search runs long enough to notice, so quick ones
       // don't flicker it.
-      Text {
+      Spinner {
         id: spinner
         anchors.right: hint.left
         anchors.rightMargin: Style.space(10)
         anchors.verticalCenter: parent.verticalCenter
+        implicitWidth: Style.font.title
         visible: false
-        text: String.fromCodePoint(0xf0772)
-        color: Colors.accent
-        font.family: Style.font.icon
-        font.pixelSize: Style.font.title
-
-        RotationAnimator on rotation {
-          running: spinner.visible
-          from: 0; to: 360; duration: 800
-          loops: Animation.Infinite
-        }
 
         Timer {
           interval: 250

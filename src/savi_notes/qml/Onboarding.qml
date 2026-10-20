@@ -54,7 +54,7 @@ FocusScope {
     }
   }
 
-  // One line of the preparing screen: a tick once done, a turning glyph while under way.
+  // One line of the preparing screen: a tick once done, a spinner while under way.
   component Step: Item {
     id: stepRow
     property string label
@@ -68,16 +68,15 @@ FocusScope {
       anchors.verticalCenter: parent.verticalCenter
       width: Style.space(18)
       horizontalAlignment: Text.AlignHCenter
-      text: String.fromCodePoint(stepRow.done ? 0xf012c : stepRow.active ? 0xf0772 : 0xf0766)
-      color: stepRow.done || stepRow.active ? Colors.accent : Util.alpha(Colors.foreground, 0.3)
+      visible: !stepRow.active
+      text: String.fromCodePoint(stepRow.done ? 0xf012c : 0xf0766)
+      color: stepRow.done ? Colors.accent : Util.alpha(Colors.foreground, 0.3)
       font.family: Style.font.icon
       font.pixelSize: Style.font.body
-      RotationAnimator on rotation {
-        running: stepRow.active
-        from: 0; to: 360; duration: 1100
-        loops: Animation.Infinite
-        onStopped: stepIcon.rotation = 0
-      }
+    }
+    Spinner {
+      anchors.centerIn: stepIcon
+      visible: stepRow.active
     }
     Text {
       anchors.left: stepIcon.right

@@ -9,6 +9,7 @@ Item {
   property string tip: ""
   property string tipHint: ""
   property bool highlighted: false
+  property bool busy: false
   signal activated()
 
   width: Style.space(28)
@@ -29,8 +30,15 @@ Item {
     border.color: Colors.accent
   }
 
+  Spinner {
+    anchors.centerIn: parent
+    implicitWidth: Style.font.title
+    visible: iconButton.busy
+  }
+
   Text {
     anchors.centerIn: parent
+    visible: !iconButton.busy
     text: iconButton.glyph
     color: iconButton.highlighted ? Colors.accent : Colors.foreground
     font.pixelSize: Style.font.title
