@@ -48,7 +48,7 @@ Item {
       color: Colors.background
       borderSpec: Border.flat(Colors.accent, Style.normalBorderWidth)
       padding: Style.space(18)
-      radius: Style.cornerRadius
+      radius: Math.max(Style.cornerRadius, Style.space(12))
 
       MouseArea { anchors.fill: parent; onClicked: {} }
 

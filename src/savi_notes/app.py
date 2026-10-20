@@ -503,7 +503,9 @@ class App(QObject):
   def runUpdate(self, version):
     """Install the release once this window has closed, then reopen."""
     command = update.install_command(version)
-    launcher = sys.argv[0] if os.path.isabs(sys.argv[0]) else (shutil.which("savi-notes") or "savi-notes")
+    # The installed command, not sys.argv[0]: the window runs as python -m savi_notes.
+    from . import shortcuts
+    launcher = shortcuts.launcher(gui=True)
     if not command:
       QGuiApplication.instance().quit()
       return
