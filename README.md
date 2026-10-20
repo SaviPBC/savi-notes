@@ -93,10 +93,10 @@ The app checks GitHub's latest release when it opens and offers to update
 and reopen. `savi-notes update` does the same from a terminal. The Claude
 Code skill ships inside the app, so updating the app updates the skill.
 
-To publish a release: bump `version` in `pyproject.toml`, commit, and push a
-tag like `v0.2.0`. The release workflow builds the wheel and publishes the
-release; write "Required update" in the release notes to make the dialog
-insist.
+Every push to `main` that passes CI becomes a release: the next patch version
+is tagged and published automatically. For a bigger jump, push a tag like
+`v0.3.0` with the commit. "Required update" in a commit message makes the
+update dialog insist.
 
 ## How your notes are kept
 
@@ -124,7 +124,7 @@ Settings to search by words only.
 
 ```sh
 uv sync
-uv run savi-notes
+SAVI_NOTES_DEV=1 uv run savi-notes   # the checkout, beside the installed app
 uv run python scripts/sync_test.py   # two devices through a stand-in AI Core
 uv run python scripts/boot_test.py   # what CI runs on every platform
 ```

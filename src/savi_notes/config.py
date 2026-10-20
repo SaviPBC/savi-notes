@@ -5,7 +5,10 @@ import os
 
 from platformdirs import user_cache_dir, user_config_dir, user_data_dir
 
-APP = "savi-notes"
+# SAVI_NOTES_DEV=1 runs the checkout beside the installed app: its own settings,
+# local copy and caches, and it leaves the launcher and Claude skill alone.
+DEV = bool(os.environ.get("SAVI_NOTES_DEV"))
+APP = "savi-notes-dev" if DEV else "savi-notes"
 
 DEFAULTS = {
   # The Savi AI Core, which signs people in and holds their encrypted notes.
@@ -35,8 +38,9 @@ def path():
 
 def theme_path():
   """An optional theme: colours, fonts, shapes, and the name and icon the launcher shows.
-  Wolfen writes one for its current theme; without it the app keeps the Savi look."""
-  return os.path.join(config_dir(), "theme.toml")
+  Wolfen writes one for its current theme; without it the app keeps the Savi look. The
+  dev profile wears the installed app's."""
+  return os.path.join(user_config_dir("savi-notes", appauthor=False), "theme.toml")
 
 
 def vault_dir():

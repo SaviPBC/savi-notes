@@ -28,7 +28,9 @@ def latest():
 
 
 def parts(version):
-  return tuple(int(p) for p in re.findall(r"\d+", str(version))[:3])
+  """Comparable form; a .devN build sorts below the release of the same number."""
+  numbers = tuple(int(p) for p in re.findall(r"\d+", str(version).split("+")[0])[:3])
+  return numbers + (0 if "dev" in str(version) else 1,)
 
 
 def is_newer(candidate, current):

@@ -87,7 +87,11 @@ uv run python scripts/boot_test.py
 uv build                      # the wheel must include qml/, fonts/, skill/, FORMAT.md, icon.svg
 ```
 
-On this machine `uv` comes from mise: `mise x uv@0.13.0 -- uv …`. For tests,
+Ross's everyday Notes is the released app (`uv tool install`); to try the
+checkout beside it, `SAVI_NOTES_DEV=1 uv run savi-notes` runs it with its own
+settings, local copy and caches (`savi-notes-dev`, same account, so it syncs
+like a second computer), no launcher, skill or update check, and "Notes (dev)"
+in the title. `uv` comes from mise (global 0.13.0). For tests,
 point `XDG_CONFIG_HOME`, `XDG_DATA_HOME` and `XDG_CACHE_HOME` at a scratch
 directory so Ross's real settings, model download and launcher entry are not
 touched; the boot test writes the config it finds, so always run it with a
@@ -149,12 +153,15 @@ which each theme switch renders and a migration links in as `theme.toml`;
 
 ## Releases and updates
 
-Bump `version` in `pyproject.toml`, commit, push a tag `vX.Y.Z`. The release
-workflow builds the wheel and publishes a GitHub release. The app reads the
-latest release on launch; "Required update" in the release notes removes the
-Later button. The update runs `uv tool install --force --reinstall
-git+https://github.com/SaviPBC/savi-notes@vX.Y.Z` after the window closes
-and reopens the app. `update.REPO` is the single place the repo name lives.
+Every push to `main` that passes CI is released (`.github/workflows/release.yml`):
+the commit gets the next patch tag, or keeps a `v*` tag pushed with it for a
+bigger jump (`git tag v0.3.0 && git push origin main v0.3.0`), and the wheel is
+built and published. The version is that tag (`hatch-vcs`; nothing to bump in
+`pyproject.toml`), and a checkout reports the next version's `.devN`. The app
+reads the latest release on launch; "Required update" in a commit message makes
+that release insist. The update runs `uv tool install --force --reinstall
+git+https://github.com/SaviPBC/savi-notes@vX.Y.Z` after the window closes and
+reopens the app. `update.REPO` is the single place the repo name lives.
 
 ## Style
 

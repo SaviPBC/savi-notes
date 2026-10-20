@@ -303,9 +303,10 @@ class App(QObject):
     import_legacy(self.cfg)
     os.makedirs(config.vault_dir(), exist_ok=True)
     self.bridge.start(config.vault_dir())
-    from . import shortcuts, skill
-    skill.install()
-    shortcuts.install()
+    if not config.DEV:
+      from . import shortcuts, skill
+      skill.install()
+      shortcuts.install()
 
   def forget_local(self):
     """This computer's copy, which signing out or starting over must not leave behind."""
@@ -397,6 +398,10 @@ class App(QObject):
   def look(self):
     """The theme file's contents; {} means the Savi look."""
     return self.look_data
+
+  @Property(bool, constant=True)
+  def dev(self):
+    return config.DEV
 
   @Property(bool, constant=True)
   def isMac(self):
@@ -580,8 +585,9 @@ def run(note=""):
   if not app_obj.needsSetup:
     import_legacy(cfg)
     bridge.start(config.vault_dir())
-    from . import skill
-    skill.install()
+    if not config.DEV:
+      from . import skill
+      skill.install()
 
   def connection():
     sock = server.nextPendingConnection()
@@ -608,10 +614,10 @@ def run(note=""):
     return 1
   macos.bring_forward()
   from . import shortcuts
-  if not app_obj.needsSetup:
+  if not app_obj.needsSetup and not config.DEV:
     shortcuts.install()
 
-  if not os.environ.get("SAVI_NOTES_NO_UPDATE_CHECK"):
+  if not os.environ.get("SAVI_NOTES_NO_UPDATE_CHECK") and not config.DEV:
     threading.Thread(target=check_updates, args=(app_obj,), daemon=True).start()
   code = app.exec()
   bridge.wait(8000)

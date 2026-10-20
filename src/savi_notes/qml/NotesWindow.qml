@@ -53,7 +53,7 @@ Window {
   property bool statusError: false
   property bool quitting: false
 
-  title: (current ? current.title + (dirty ? " •" : "") + " · " : "") + "Notes"
+  title: (current ? current.title + (dirty ? " •" : "") + " · " : "") + (App.dev ? "Notes (dev)" : "Notes")
   color: Qt.rgba(Colors.background.r, Colors.background.g, Colors.background.b, 1)
   width: 1180
   height: 760

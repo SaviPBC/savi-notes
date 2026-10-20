@@ -1,21 +1,45 @@
 name: Release
 
-# Pushing a tag like v0.2.0 builds the wheel and publishes a GitHub release
-# for it; the app's update check reads the latest release.
+# Every push to main that passes CI is a release: the commit keeps a v* tag
+# pushed with it (for a bigger jump), or gets the next patch tag. The version
+# comes from that tag, and installed apps offer the update. "Required update"
+# in a commit message makes the release insist.
 on:
-  push:
-    tags: ["v*"]
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+concurrency: release
 
 jobs:
   release:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+      - name: Tag
+        id: tag
+        run: |
+          tag=$(git tag --points-at HEAD --list 'v*' --sort=-v:refname | head -1)
+          if [ -z "$tag" ]; then
+            last=$(git tag --list 'v*' --sort=-v:refname | head -1)
+            IFS=. read -r major minor patch <<<"${last#v}"
+            tag="v$major.$minor.$((patch + 1))"
+            git tag "$tag"
+            git push origin "$tag"
+          fi
+          previous=$(git describe --tags --abbrev=0 --match 'v*' "$tag^" 2>/dev/null || true)
+          git log --format='- %s%n%b' ${previous:+$previous..}"$tag" | grep -v '^Co-Authored-By:' > notes.md
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
       - uses: astral-sh/setup-uv@v6
       - run: uv build
-      - uses: softprops/action-gh-release@v2
-        with:
-          files: dist/*
-          generate_release_notes: true
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${{ steps.tag.outputs.tag }}" dist/*.whl dist/*.tar.gz --title "${{ steps.tag.outputs.tag }}" --notes-file notes.md

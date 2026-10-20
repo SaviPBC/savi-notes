@@ -1,6 +1,6 @@
 [project]
 name = "savi-notes"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Markdown notes organised by tags, encrypted and synced through the Savi AI Core, with a Claude Code skill"
 readme = "README.md"
 requires-python = ">=3.11,<3.15"
@@ -23,8 +23,14 @@ savi-notes = "savi_notes.cli:main"
 savi-notes-app = "savi_notes.cli:main"
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
+
+# The version is the release tag (see .github/workflows/release.yml), so there is
+# nothing to bump; a commit past a tag builds as the next version's .devN.
+[tool.hatch.version]
+source = "vcs"
+raw-options = { fallback_version = "0.0.0" }
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/savi_notes"]
