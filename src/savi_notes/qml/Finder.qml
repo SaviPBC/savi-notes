@@ -587,6 +587,22 @@ Item {
       Rectangle { width: parent.width; height: 1; color: Util.alpha(Colors.foreground, 0.08) }
 
       Text {
+        anchors.left: parent.left
+        anchors.leftMargin: Style.space(16)
+        anchors.right: counts.left
+        anchors.rightMargin: Style.space(12)
+        anchors.verticalCenter: parent.verticalCenter
+        visible: finder.articleTab
+        text: {
+          var d = app.departments
+          return (d.length > 1 ? d.slice(0, -1).join(", ") + " and " + d[d.length - 1] : d.join("")) + " internal articles on the AI Core"
+        }
+        color: Util.alpha(Colors.foreground, 0.45)
+        font.pixelSize: Style.font.caption
+        elide: Text.ElideRight
+      }
+
+      Text {
         id: counts
         anchors.right: parent.right
         anchors.rightMargin: Style.space(16)
@@ -595,6 +611,7 @@ Item {
           if (app.indexState) return app.indexState
           if (finder.actionTab) return ""
           if (finder.tab === "tags") { var t = finder.visibleTags.length; return t + (t === 1 ? " tag" : " tags") }
+          if (finder.articleTab) { var a = finder.visibleArticles.length; return a + (a === 1 ? " article" : " articles") }
           var n = app.visibleNotes.length
           if (app.query.trim()) return n + (n === 1 ? " match" : " matches")
           return n + (n === 1 ? " note" : " notes")
