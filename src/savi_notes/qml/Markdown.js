@@ -454,9 +454,12 @@ function emphasis(text) {
   return text
 }
 
+// Padded with small no-break spaces: thin spaces are whitespace, and the one after
+// the space before the span collapsed, leaving the gap on one side only.
 function codeSpan(code, t) {
+  var pad = "<span style=\"font-size:" + t.px(5) + ";\">&nbsp;</span>"
   return "<span style=\"font-family:'" + t.mono + "'; font-size:" + t.px(13.125) + "; color:" + t.codeColor
-    + "; background-color:" + t.codeBg + ";\"> " + esc(code).replace(/ /g, "&nbsp;") + " </span>"
+    + "; background-color:" + t.codeBg + ";\">" + pad + esc(code).replace(/ /g, "&nbsp;") + pad + "</span>"
 }
 
 function footnoteRef(label, t, ctx) {

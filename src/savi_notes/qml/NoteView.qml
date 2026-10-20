@@ -141,11 +141,77 @@ FocusScope {
 
   onColumnWidthChanged: if (note && !pane.editing) render()
 
+  // Switching keeps what was at the top of the view at the same height on screen: source
+  // and rendered text lay out differently, so the same scroll offset would show elsewhere.
   function toggleEditing() {
     if (!note) return
-    pane.editing = !pane.editing
-    if (pane.editing) focusEditor()
-    else { pane.save(); render(); reader.forceActiveFocus() }
+    var top = Math.max(0, page.contentY - column.y - body.y)
+    if (!pane.editing) {
+      var p = reader.positionAt(0, top + 1)
+      var at = sourceAt(p)
+      focusEditor()
+      if (at >= 0) keepAt(editor, at, reader.positionToRectangle(p).y - top)
+    } else {
+      var from = editor.positionAt(0, top + 1)
+      var offset = editor.positionToRectangle(from).y - top
+      pane.editing = false
+      pane.save()
+      render()
+      reader.forceActiveFocus()
+      Qt.callLater(function() { var r = renderedAt(from); if (r >= 0) keepAt(reader, r, offset) })
+    }
+  }
+
+  function keepAt(item, position, offset) {
+    Qt.callLater(function() {
+      var y = column.y + body.y + item.positionToRectangle(position).y - offset
+      page.contentY = Math.max(0, Math.min(page.contentHeight - page.height, y))
+    })
+  }
+
+  // Where a position in the rendered note is in the source: the words before it on its
+  // line, or failing that after it, looked for in the source. -1 when they aren't found.
+  function sourceAt(p) {
+    var plain = reader.getText(0, reader.length)
+    var lineStart = Math.max(plain.lastIndexOf("\u2029", p - 1), plain.lastIndexOf("\n", p - 1)) + 1
+    var source = pane.body, at = -1
+    // How many times the line's text appears before the click, to tell
+    // repeated lines apart.
+    var line = plain.slice(lineStart, p)
+    for (var len = 24; len >= 3 && at < 0; len = Math.floor(len / 2)) {
+      var needle = line.slice(-len)
+      if (needle.trim().length < 3) continue
+      var nth = plain.slice(0, p).split(needle).length - 1
+      var found = -1
+      for (var i = 0; i < nth; i++) { found = source.indexOf(needle, found + 1); if (found < 0) break }
+      if (found >= 0) at = found + needle.length
+    }
+    if (at < 0) {
+      var ahead = plain.slice(p, p + 12).replace(/[\u2029\n].*$/, "")
+      at = ahead.trim().length >= 3 ? source.indexOf(ahead) : -1
+    }
+    return at
+  }
+
+  // The reverse: the first run of words on the source line at s (or the next lines, past
+  // fences and rules), found in the rendered text the same number of times in.
+  function renderedAt(s) {
+    var source = pane.body, plain = reader.getText(0, reader.length)
+    var start = source.lastIndexOf("\n", s - 1) + 1
+    for (var tries = 0; tries < 6 && start < source.length; tries++) {
+      var end = source.indexOf("\n", start)
+      if (end < 0) end = source.length
+      var words = source.slice(start, end).match(/[A-Za-z0-9][A-Za-z0-9 ,.'-]{2,23}/)
+      if (words) {
+        var needle = words[0].trim()
+        var nth = source.slice(0, start).split(needle).length
+        var found = -1
+        for (var i = 0; i < nth; i++) { found = plain.indexOf(needle, found + 1); if (found < 0) break }
+        if (found >= 0) return found
+      }
+      start = end + 1
+    }
+    return -1
   }
 
   function focusEditor() {
@@ -351,27 +417,13 @@ FocusScope {
   // A click on the rendered note edits it, with the cursor near where the
   // click landed: the words before it are looked for in the source.
   function editAt(x, y) {
-    var plain = reader.getText(0, reader.length)
     var p = reader.positionAt(x, y)
-    var lineStart = Math.max(plain.lastIndexOf("\u2029", p - 1), plain.lastIndexOf("\n", p - 1)) + 1
-    var source = pane.body, at = -1
-    // How many times the line's text appears before the click, to tell
-    // repeated lines apart.
-    var line = plain.slice(lineStart, p)
-    for (var len = 24; len >= 3 && at < 0; len = Math.floor(len / 2)) {
-      var needle = line.slice(-len)
-      if (needle.trim().length < 3) continue
-      var nth = plain.slice(0, p).split(needle).length - 1
-      var found = -1
-      for (var i = 0; i < nth; i++) { found = source.indexOf(needle, found + 1); if (found < 0) break }
-      if (found >= 0) at = found + needle.length
-    }
-    if (at < 0) {
-      var ahead = plain.slice(p, p + 12).replace(/[\u2029\n].*$/, "")
-      at = ahead.trim().length >= 3 ? source.indexOf(ahead) : -1
-    }
+    var at = sourceAt(p)
+    var offset = reader.positionToRectangle(p).y - Math.max(0, page.contentY - column.y - body.y)
     focusEditor()
-    if (at >= 0) editor.cursorPosition = at
+    if (at < 0) return
+    editor.cursorPosition = at
+    keepAt(editor, at, offset)
   }
 
   function focusTitle() {
