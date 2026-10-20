@@ -8,6 +8,8 @@ FocusScope {
   id: onboarding
 
   property bool semantic: App.semantic
+  // While preparing: what the engine has reported (NotesWindow.preparing).
+  property var progress: ({})
   property bool saved: false
   readonly property string step: App.setupStep
 
@@ -49,6 +51,48 @@ FocusScope {
       hoverEnabled: true
       cursorShape: Qt.PointingHandCursor
       onClicked: button.clicked()
+    }
+  }
+
+  // One line of the preparing screen: a tick once done, a turning glyph while under way.
+  component Step: Item {
+    id: stepRow
+    property string label
+    property string detail
+    property bool done
+    property bool active
+    width: parent.width
+    height: Style.space(24)
+    Text {
+      id: stepIcon
+      anchors.verticalCenter: parent.verticalCenter
+      width: Style.space(18)
+      horizontalAlignment: Text.AlignHCenter
+      text: String.fromCodePoint(stepRow.done ? 0xf012c : stepRow.active ? 0xf0772 : 0xf0766)
+      color: stepRow.done || stepRow.active ? Colors.accent : Util.alpha(Colors.foreground, 0.3)
+      font.family: Style.font.icon
+      font.pixelSize: Style.font.body
+      RotationAnimator on rotation {
+        running: stepRow.active
+        from: 0; to: 360; duration: 1100
+        loops: Animation.Infinite
+        onStopped: stepIcon.rotation = 0
+      }
+    }
+    Text {
+      anchors.left: stepIcon.right
+      anchors.leftMargin: Style.space(10)
+      anchors.verticalCenter: parent.verticalCenter
+      text: stepRow.label
+      color: stepRow.done || stepRow.active ? Colors.foreground : Util.alpha(Colors.foreground, 0.5)
+      font.pixelSize: Style.font.body
+    }
+    Text {
+      anchors.right: parent.right
+      anchors.verticalCenter: parent.verticalCenter
+      text: stepRow.detail
+      color: Util.alpha(Colors.foreground, 0.55)
+      font.pixelSize: Style.font.bodySmall
     }
   }
 
@@ -110,7 +154,8 @@ FocusScope {
     spacing: Style.space(18)
 
     Text {
-      text: String.fromCodePoint(onboarding.step === "newKey" || onboarding.step === "recover" ? 0xf0306 : 0xf0ebf)
+      text: String.fromCodePoint(onboarding.step === "newKey" || onboarding.step === "recover" ? 0xf0306
+                                 : onboarding.step === "preparing" ? 0xf0162 : 0xf0ebf)
       color: Colors.accent
       font.family: Style.font.icon
       font.pixelSize: Style.font.display * 2
@@ -122,6 +167,7 @@ FocusScope {
       text: onboarding.step === "newKey" ? "Save your recovery key"
           : onboarding.step === "recover" ? "Enter your recovery key"
           : onboarding.step === "waiting" ? "Finish signing in in your browser"
+          : onboarding.step === "preparing" ? "Getting your notes ready"
           : "Welcome to Savi Notes"
       color: Colors.foreground
       font.pixelSize: Style.font.display
@@ -270,6 +316,44 @@ FocusScope {
       }
     }
 
+    // ---------------------------------------------------------------- preparing
+
+    Prose {
+      visible: onboarding.step === "preparing"
+      text: "Your notes are coming down from the AI Core and being decrypted on this computer. This only happens once."
+    }
+
+    Column {
+      visible: onboarding.step === "preparing"
+      width: parent.width
+      spacing: Style.space(12)
+
+      readonly property var p: onboarding.progress
+      readonly property bool searchReady: !!p.searchDone || p.toIndex > 0
+
+      Step {
+        label: "Downloading your notes"
+        done: !!parent.p.notesDone
+        active: !done
+        detail: done ? parent.p.notes + (parent.p.notes === 1 ? " note" : " notes")
+              : parent.p.notes ? parent.p.notes + " so far" : "Connecting to the AI Core…"
+      }
+      Step {
+        visible: App.semantic
+        label: "Downloading the search model"
+        done: parent.searchReady
+        active: !!parent.p.notesDone && !done
+        detail: done ? "Ready" : parent.p.model >= 0 ? parent.p.model + "%" : active ? "Checking…" : ""
+      }
+      Step {
+        visible: App.semantic
+        label: "Indexing for search"
+        done: !!parent.p.searchDone
+        active: parent.searchReady && !done
+        detail: done ? "Done" : parent.p.toIndex ? parent.p.indexed + " of " + parent.p.toIndex : ""
+      }
+    }
+
     // ---------------------------------------------------------------- shared
 
     Text {
@@ -285,7 +369,7 @@ FocusScope {
       spacing: Style.space(10)
 
       Button {
-        visible: onboarding.step !== "waiting"
+        visible: onboarding.step !== "waiting" && onboarding.step !== "preparing"
         enabled: onboarding.step !== "newKey" || onboarding.saved
         label: onboarding.step === "newKey" ? "Start taking notes" : onboarding.step === "recover" ? "Unlock notes" : "Sign in with Savi"
         onClicked: onboarding.primary()

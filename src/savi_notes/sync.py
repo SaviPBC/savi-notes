@@ -117,9 +117,10 @@ class Sync:
     self.timer.start()
 
   def loop(self):
+    """After the first run, which the engine makes before it says it's ready."""
     while self.enabled:
-      self.run()
       time.sleep(INTERVAL)
+      self.run()
 
   def run(self):
     """One pull and push. True when nothing is left to send."""
@@ -168,6 +169,7 @@ class Sync:
   def pull(self):
     changed = False
     cursor = self.cursor()
+    pulled = 0
     while True:
       page = self.client.call("GET", "/changes?since=%d" % cursor)
       downloads = {}
@@ -181,6 +183,8 @@ class Sync:
           changed = self.apply_file(item, downloads.get(item["id"])) or changed
       cursor = page["cursor"]
       self.q("insert or replace into meta values ('cursor', ?)", str(cursor))
+      pulled += len(page["notes"])
+      self.emit({"event": "pulling", "notes": pulled})
       if not page["more"]:
         return changed
 

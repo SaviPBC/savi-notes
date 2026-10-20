@@ -102,12 +102,15 @@ def windows():
   start_menu = os.path.join(os.environ.get("APPDATA", os.path.expanduser("~")), "Microsoft", "Windows", "Start Menu", "Programs")
   os.makedirs(start_menu, exist_ok=True)
   link = os.path.join(start_menu, "Savi Notes.lnk")
-  if os.path.exists(link):
+  icon = os.path.join(HERE, "icon.ico")
+  # Written again once the installed app is newer than it, so an update reaches it.
+  if os.path.exists(link) and os.path.getmtime(link) >= os.path.getmtime(icon):
     return "It's in the Start Menu as Savi Notes."
   target = launcher(gui=True)
   script = ("$s = (New-Object -ComObject WScript.Shell).CreateShortcut('%s'); $s.TargetPath = '%s'; "
-            "$s.WorkingDirectory = '%s'; $s.Description = 'Savi Notes'; $s.Save()"
-            % (link.replace("'", "''"), target.replace("'", "''"), os.path.expanduser("~").replace("'", "''")))
+            "$s.WorkingDirectory = '%s'; $s.IconLocation = '%s'; $s.Description = 'Savi Notes'; $s.Save()"
+            % (link.replace("'", "''"), target.replace("'", "''"), os.path.expanduser("~").replace("'", "''"),
+               icon.replace("'", "''")))
   subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", script], check=True, capture_output=True,
                  creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
   return "It's in the Start Menu as Savi Notes."

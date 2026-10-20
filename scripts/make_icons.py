@@ -1,5 +1,5 @@
-"""Render icon.svg into icon.icns for the macOS app bundle. Run it after changing the
-icon; the .icns is committed, since building one needs nothing but Qt and this script."""
+"""Render icon.svg into icon.icns (the macOS app bundle) and icon.ico (the Windows Start Menu
+shortcut). Run it after changing the icon; both are committed, and need only Qt to build."""
 
 import os
 import struct
@@ -28,6 +28,7 @@ def main():
   body = b"".join(kind.encode() + struct.pack(">I", 8 + len(p)) + p for kind, p in ((k, png(icon, s)) for k, s in ENTRIES))
   with open(os.path.join(HERE, "icon.icns"), "wb") as f:
     f.write(b"icns" + struct.pack(">I", 8 + len(body)) + body)
+  icon.pixmap(QSize(256, 256)).toImage().save(os.path.join(HERE, "icon.ico"), "ICO")
 
 
 if __name__ == "__main__":

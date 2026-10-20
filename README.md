@@ -15,7 +15,8 @@ Runs on Windows, macOS and Linux.
 Paste this into Claude Code:
 
 > Install Savi Notes: install `uv` if it's missing (https://docs.astral.sh/uv/getting-started/installation/),
-> run `uv tool install git+https://github.com/SaviPBC/savi-notes`, then run `savi-notes`.
+> run `uv tool install https://github.com/SaviPBC/savi-notes/releases/latest/download/savi-notes.tar.gz`,
+> then run `savi-notes` (in a new terminal if `uv` just added its folder to the PATH).
 > The app asks me to sign in on first launch and installs its Claude Code skill
 > itself. When it's open, tell me how to find the app again and show me how the skill
 > works by creating a note titled "Hello" with a couple of lines in it.
@@ -23,9 +24,11 @@ Paste this into Claude Code:
 Or by hand:
 
 ```sh
-uv tool install git+https://github.com/SaviPBC/savi-notes
+uv tool install https://github.com/SaviPBC/savi-notes/releases/latest/download/savi-notes.tar.gz
 savi-notes
 ```
+
+Git isn't needed: that's the latest release's source.
 
 The first launch asks for the theme and whether to search by meaning, then
 opens the browser to sign in to the Savi AI Core. On your first computer it

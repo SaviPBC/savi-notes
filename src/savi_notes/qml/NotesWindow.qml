@@ -49,6 +49,10 @@ Window {
   property int syncTime: 0
   property bool syncEnabled: false
 
+  // First-run setup's progress screen, from the engine's events until it says "ready".
+  property var preparing: ({ notes: 0, notesDone: false, model: -1, indexed: 0, toIndex: 0, searchDone: false })
+  function prepared(change) { window.preparing = Object.assign({}, window.preparing, change) }
+
   property string status: ""
   property bool statusError: false
   property bool quitting: false
@@ -185,6 +189,12 @@ Window {
   // ---------------------------------------------------------------- engine
 
   function engineEvent(message) {
+    if (message.event === "ready") App.prepared()
+    else if (message.event === "pulling") prepared({ notes: message.notes })
+    if (message.event === "sync" && message.state !== "running") prepared({ notesDone: true })
+    if (message.event === "model") prepared({ model: Math.round(100 * message.done / message.total) })
+    if (message.event === "index") prepared({ indexed: message.done, toIndex: message.total })
+    if (message.event === "search") prepared({ searchDone: true })
     if (message.event === "index") {
       window.indexState = message.done < message.total ? "Indexing " + message.done + " of " + message.total : ""
     } else if (message.event === "model") {
@@ -773,6 +783,7 @@ Window {
 
     Onboarding {
       anchors.fill: parent
+      progress: window.preparing
       z: 3000
     }
 

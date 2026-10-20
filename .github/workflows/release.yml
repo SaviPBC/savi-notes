@@ -39,7 +39,9 @@ jobs:
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
       - uses: astral-sh/setup-uv@v6
       - run: uv build
+      # The same source archive under a fixed name, for an install command that never changes.
+      - run: cp dist/savi_notes-*.tar.gz savi-notes.tar.gz
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${{ steps.tag.outputs.tag }}" dist/*.whl dist/*.tar.gz --title "${{ steps.tag.outputs.tag }}" --notes-file notes.md
+        run: gh release create "${{ steps.tag.outputs.tag }}" dist/*.whl dist/*.tar.gz savi-notes.tar.gz --title "${{ steps.tag.outputs.tag }}" --notes-file notes.md

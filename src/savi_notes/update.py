@@ -6,7 +6,9 @@ import shutil
 import urllib.request
 
 REPO = "SaviPBC/savi-notes"
-INSTALL_SOURCE = "git+https://github.com/%s" % REPO
+# The release's source archive under a name that doesn't change, which carries its own
+# version, so installing needs neither git (Windows has none) nor a version number.
+INSTALL_LATEST = "https://github.com/%s/releases/latest/download/savi-notes.tar.gz" % REPO
 
 
 def latest():
@@ -42,4 +44,5 @@ def install_command(version):
   uv = shutil.which("uv")
   if not uv:
     return None
-  return [uv, "tool", "install", "--force", "--reinstall", "%s@v%s" % (INSTALL_SOURCE, version)]
+  source = "https://github.com/%s/releases/download/v%s/savi-notes.tar.gz" % (REPO, version)
+  return [uv, "tool", "install", "--force", "--reinstall", source]

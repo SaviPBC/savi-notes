@@ -1158,10 +1158,17 @@ class Engine:
       return {}
     raise ValueError("unknown op " + str(op))
 
+  def prepare(self):
+    """Bring this computer up to date before the window is used: the notes first, then the
+    search index over all of them, then "ready" (which ends first-run setup's progress)."""
+    self.sync.run()
+    self.reindex()
+    emit({"event": "ready"})
+    self.sync.loop()
+
   def serve(self):
-    threading.Thread(target=self.reindex, daemon=True).start()
+    threading.Thread(target=self.prepare, daemon=True).start()
     threading.Thread(target=self.watch, daemon=True).start()
-    threading.Thread(target=self.sync.loop, daemon=True).start()
     try:
       for line in sys.stdin:
         line = line.strip()

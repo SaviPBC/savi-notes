@@ -65,9 +65,10 @@ exception: company content, plaintext, edited through the gateway.
   (installs `skill/SKILL.md` into `~/.claude/skills/savi-notes`, re-copied
   on every launch when it differs), `shortcuts.py` (Start Menu / `.app` /
   `.desktop`, refreshed on every launch, writing only what changed),
-  `macos.py` (names the process "Savi Notes" and brings it forward; PyObjC,
-  macOS only), `icon.icns` (from `icon.svg` by `scripts/make_icns.py`;
-  rerun it after changing the icon), `vaultcheck.py` (`savi-notes check`), `FORMAT.md` (every
+  `desktop.py` (names the process "Savi Notes" — PyObjC on macOS, an
+  AppUserModelID on Windows — and brings it forward), `icon.icns` and
+  `icon.ico` (from `icon.svg` by `scripts/make_icons.py`; rerun it after
+  changing the icon), `vaultcheck.py` (`savi-notes check`), `FORMAT.md` (every
   markdown syntax the renderer supports; the skill reads it through
   `savi-notes format`), `fonts/` (Nerd Font symbols, MIT), `icon.svg` (Savi's
   V mark, colours from app.bysavi.com's favicon).
@@ -156,12 +157,14 @@ which each theme switch renders and a migration links in as `theme.toml`;
 Every push to `main` that passes CI is released (`.github/workflows/release.yml`):
 the commit gets the next patch tag, or keeps a `v*` tag pushed with it for a
 bigger jump (`git tag v0.3.0 && git push origin main v0.3.0`), and the wheel is
-built and published. The version is that tag (`hatch-vcs`; nothing to bump in
+built and published, along with the source archive again as `savi-notes.tar.gz`,
+which is what installs and updates fetch: it carries its version and needs no git
+(Windows has none). The version is that tag (`hatch-vcs`; nothing to bump in
 `pyproject.toml`), and a checkout reports the next version's `.devN`. The app
 reads the latest release on launch; "Required update" in a commit message makes
 that release insist. The update runs `uv tool install --force --reinstall
-git+https://github.com/SaviPBC/savi-notes@vX.Y.Z` after the window closes and
-reopens the app. `update.REPO` is the single place the repo name lives.
+https://github.com/SaviPBC/savi-notes/releases/download/vX.Y.Z/savi-notes.tar.gz`
+after the window closes and reopens the app. `update.REPO` is the single place the repo name lives.
 
 ## Style
 

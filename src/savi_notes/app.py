@@ -19,7 +19,7 @@ from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuickControls2 import QQuickStyle
 
-from . import __version__, account, config, crypto, macos, update
+from . import __version__, account, config, crypto, desktop, update
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 QML_DIR = os.path.join(HERE, "qml")
@@ -156,7 +156,8 @@ class App(QObject):
 
   @Property(str, notify=stepChanged)
   def setupStep(self):
-    """signin, waiting (the browser is open), newKey, recover, or "" once set up."""
+    """signin, waiting (the browser is open), newKey, recover, preparing (the first sync and
+    index, before the window is used), or "" once set up."""
     return self.step
 
   @Property(str, notify=stepChanged)
@@ -294,18 +295,25 @@ class App(QObject):
     account.save(self.account)
 
   def stepped(self, step, error):
-    """Back on the UI thread with the outcome of a background step."""
-    self.go(step, error)
+    """Back on the UI thread with the outcome of a background step. Signed in and unlocked
+    means the notes come down and get indexed first, behind a progress screen."""
     if step == "":
+      self.go("preparing")
       self.start_engine()
+    else:
+      self.go(step, error)
+
+  @Slot()
+  def prepared(self):
+    if self.step == "preparing":
+      self.go("")
 
   def start_engine(self):
     import_legacy(self.cfg)
     os.makedirs(config.vault_dir(), exist_ok=True)
     self.bridge.start(config.vault_dir())
     if not config.DEV:
-      from . import shortcuts, skill
-      skill.install()
+      from . import shortcuts
       shortcuts.install()
 
   def forget_local(self):
@@ -510,8 +518,10 @@ class App(QObject):
       QGuiApplication.instance().quit()
       return
     if sys.platform == "win32":
+      # One string through the shell: as a list, Python escapes the quotes for cmd with
+      # backslashes, which cmd doesn't understand ("Windows cannot find '\\'").
       line = "timeout /t 3 /nobreak >nul & %s & start \"\" \"%s\"" % (subprocess.list2cmdline(command), launcher)
-      subprocess.Popen(["cmd", "/c", line], creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP)
+      subprocess.Popen(line, shell=True, creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP)
     else:
       line = "sleep 3; %s; exec %s" % (shlex.join(command), shlex.quote(launcher))
       subprocess.Popen(["sh", "-c", line], start_new_session=True, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -557,7 +567,7 @@ def import_legacy(cfg):
 def run(note=""):
   cfg = config.load()
 
-  macos.name_app()
+  desktop.name_app()
   QQuickStyle.setStyle("Basic")
   QGuiApplication.setApplicationName("Savi Notes")
   QGuiApplication.setOrganizationName("Savi")
@@ -584,12 +594,13 @@ def run(note=""):
 
   bridge = EngineBridge()
   app_obj = App(cfg, note, {"ui": ui_family, "mono": mono_family, "icon": icon_family}, bridge)
+  # Before sign-in too, so whoever installed it through Claude Code can try the skill at once.
+  if not config.DEV:
+    from . import skill
+    skill.install()
   if not app_obj.needsSetup:
     import_legacy(cfg)
     bridge.start(config.vault_dir())
-    if not config.DEV:
-      from . import skill
-      skill.install()
 
   def connection():
     sock = server.nextPendingConnection()
@@ -599,7 +610,7 @@ def run(note=""):
     def read():
       for line in bytes(sock.readAll()).decode("utf-8", "replace").splitlines():
         try:
-          macos.bring_forward()
+          desktop.bring_forward()
           app_obj.openRequested.emit(str(json.loads(line).get("open") or ""))
         except ValueError:
           pass
@@ -614,7 +625,7 @@ def run(note=""):
   if not engine.rootObjects():
     sys.stderr.write("savi-notes: the window could not be created\n")
     return 1
-  macos.bring_forward()
+  desktop.bring_forward()
   from . import shortcuts
   if not app_obj.needsSetup and not config.DEV:
     shortcuts.install()
