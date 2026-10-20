@@ -174,6 +174,9 @@ def snippet_of(body):
     text = line.strip()
     if not text or text.startswith(("#", "---", "![[", "|", ">")) and not text.startswith("> "):
       continue
+    if re.match(r">\s*\[!", text):  # a callout's title line, not its text
+      continue
+    text = re.sub(r"^(>\s*)+", "", text)
     text = re.sub(r"^([-*+]|\d+\.)\s+(\[[ xX]\]\s+)?", "", text)
     text = WIKILINK.sub(lambda m: (m.group(4) or "|" + m.group(2))[1:], text)
     text = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", text)

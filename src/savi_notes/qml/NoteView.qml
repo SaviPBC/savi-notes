@@ -115,7 +115,8 @@ FocusScope {
   // Scroll the reader to the first line that starts with text.
   function scrollToText(text, last) {
     if (!text) return
-    var plain = reader.getText(0, reader.length).toLowerCase()
+    // Paragraphs in the reader are separated by U+2029, line breaks within one by \n.
+    var plain = reader.getText(0, reader.length).toLowerCase().replace(/\u2029/g, "\n")
     var want = "\n" + text.toLowerCase()
     var at = last ? plain.lastIndexOf(want) : plain.indexOf(want)
     if (at < 0) at = last ? plain.lastIndexOf(text.toLowerCase()) : plain.indexOf(text.toLowerCase())
