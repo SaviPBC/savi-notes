@@ -189,6 +189,10 @@ class Sync:
     path, revision, synced = row[0] if row else (None, 0, None)
     current = read_bytes(self.local(path)) if path else None
     edited_here = current is not None and digest(current) != synced
+    # Not newer than what this computer last confirmed: its own push coming back, which
+    # anything typed since must not be mistaken for a clash with.
+    if row and note["revision"] <= revision:
+      return False
 
     if note["deleted"]:
       if not row:

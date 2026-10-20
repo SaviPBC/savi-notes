@@ -53,4 +53,11 @@ try:
   sys.exit("FAIL importing the vault into itself was allowed")
 except ValueError:
   print("ok  the vault can't be imported into itself")
+check("only real #tags count, not escapes, link targets or URLs",
+      engine.inline_tags("\\#no [jump](#Math) [[#Tables]] https://x.io/#frag a #real one `#code`"), ["real"])
+write(os.path.join(vault, "Tagged.md"), "---\ntags: [demo, keep]\n---\nUse #demo here, `#demo` in code.\n\n```\n#demo\n```\n")
+v.scan()
+v.untag("Tagged.md", "demo")
+check("removing a tag takes it out of the list and the text, not code",
+      read("Tagged"), "---\ntags: [keep]\n---\nUse demo here, `#demo` in code.\n\n```\n#demo\n```\n")
 print("import ok")

@@ -57,7 +57,9 @@ WATCH_INTERVAL = 2
 FRONTMATTER = re.compile(r"\A---\n(.*?\n)?---\n?", re.S)
 FENCE = re.compile(r"^(```|~~~)")
 INLINE_CODE = re.compile(r"`[^`\n]*`")
-TAG = re.compile(r"(?<![\w&/#])#([A-Za-z][\w/-]*)")
+# Not after \ (escaped), ( or [ (a link's #heading target), or inside a word or URL.
+TAG_LEAD = r"(?<![\w&/#\\(\[])"
+TAG = re.compile(TAG_LEAD + r"#([A-Za-z][\w/-]*)")
 WIKILINK = re.compile(r"(!?)\[\[([^\]\n|#]+)(#[^\]\n|]*)?(\|[^\]\n]*)?\]\]")
 WORD = re.compile(r"\w+", re.U)
 
@@ -479,6 +481,23 @@ class Vault:
     with open(os.path.join(folder, name), "wb") as f:
       f.write(data)
     return 1
+
+  def untag(self, rel, tag):
+    """Take a tag off a note: out of its frontmatter, and #tag written in the text back to the
+    plain word, outside code, so it stops counting as a tag."""
+    with open(self.path_of(rel), encoding="utf-8", errors="replace") as f:
+      meta, body = split_frontmatter(f.read())
+    meta = set_frontmatter_tags(meta, [t for t in frontmatter_tags(meta) if t != tag])
+    written = re.compile(TAG_LEAD + r"#(" + re.escape(tag) + r")(?![\w/-])", re.I)
+    lines, fenced = [], False
+    for line in body.split("\n"):
+      if FENCE.match(line.strip()):
+        fenced = not fenced
+      elif not fenced:
+        parts = re.split(r"(`[^`\n]*`)", line)
+        line = "".join(p if i % 2 else written.sub(r"\1", p) for i, p in enumerate(parts))
+      lines.append(line)
+    self.write_text(rel, join_note(meta, "\n".join(lines)))
 
   def attachment(self, name):
     """Absolute path of an embedded file, found by name like Obsidian does."""
@@ -1111,6 +1130,10 @@ class Engine:
         out, n = "%s %d" % (base, n), n + 1
       shutil.copytree(v.root, out, ignore=shutil.ignore_patterns(".*", "*.savi-tmp"))
       return {"folder": out.replace(os.sep, "/"), "notes": len(v.notes)}
+    if op == "untag":
+      v.untag(req["path"], req["tag"])
+      self.edited()
+      return {"note": next((n for n in v.listing() if n["path"] == req["path"]), None)}
     if op == "resolve":
       return {"path": v.by_title(req["title"]) or ""}
     if op == "assets":

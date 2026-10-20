@@ -436,7 +436,7 @@ function inline(text, t, ctx) {
   })
   text = text.replace(/(^|[^\w&\/#\]\)])#([\w\/-]*[A-Za-z_\/-][\w\/-]*)/g, function(m, lead, tag) {
     return lead + keep("<a href=\"tag:" + esc(tag.toLowerCase()) + "\" style=\"color:" + t.cyan + "; background-color:" + t.tagBg
-                       + "; font-size:" + t.px(13.125) + "; text-decoration:none;\"> #" + esc(tag) + " </a>")
+                       + "; font-size:" + t.px(13.125) + "; text-decoration:none;\">" + pad(t) + "#" + esc(tag) + pad(t) + "</a>")
   })
 
   text = esc(text).replace(/&lt;br\s*\/?&gt;/gi, "<br>")
@@ -454,12 +454,13 @@ function emphasis(text) {
   return text
 }
 
-// Padded with small no-break spaces: thin spaces are whitespace, and the one after
-// the space before the span collapsed, leaving the gap on one side only.
+// Inline code and tag chips are padded with small no-break spaces: thin spaces are
+// whitespace, and the one after the space before the span collapsed, on one side only.
+function pad(t) { return "<span style=\"font-size:" + t.px(5) + ";\">&nbsp;</span>" }
+
 function codeSpan(code, t) {
-  var pad = "<span style=\"font-size:" + t.px(5) + ";\">&nbsp;</span>"
   return "<span style=\"font-family:'" + t.mono + "'; font-size:" + t.px(13.125) + "; color:" + t.codeColor
-    + "; background-color:" + t.codeBg + ";\">" + pad + esc(code).replace(/ /g, "&nbsp;") + pad + "</span>"
+    + "; background-color:" + t.codeBg + ";\">" + pad(t) + esc(code).replace(/ /g, "&nbsp;") + pad(t) + "</span>"
 }
 
 function footnoteRef(label, t, ctx) {
@@ -880,7 +881,7 @@ function tint(src, theme) {
     line = line.replace(/`[^`]*`/g, function(s) { return keep(color(dim, esc(s))) })
     line = line.replace(/%%.*?(%%|$)/g, function(s) { return keep(color(dim, esc(s))) })
     line = line.replace(/!?\[\[[^\]]*\]\]|!?\[[^\]]*\]\([^)]*\)|https?:\/\/\S+/g, function(s) { return keep(color(accent, esc(s))) })
-    line = line.replace(/(^|[^\w&\/#])(#[A-Za-z][\w\/-]*)/g, function(s, a, tag) { return a + keep(color(accent, esc(tag))) })
+    line = line.replace(/(^|[^\w&\/#\\(\[])(#[A-Za-z][\w\/-]*)/g, function(s, a, tag) { return a + keep(color(accent, esc(tag))) })
     line = line.replace(/\*\*|__|~~|==/g, function(s) { return keep(color(dim, s)) })
     line = esc(line).replace(/\u0001(\d+)\u0002/g, function(s, k) { return stash[+k] })
     return lead + line

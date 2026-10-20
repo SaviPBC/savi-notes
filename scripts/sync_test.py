@@ -201,6 +201,15 @@ def main():
   b.run()
   check("an edit beats a delete", b.read("Deleted here, edited there"), "two\n")
 
+  # One computer, typing between syncs: the next pull brings its own push back, which
+  # is not a second device's edit.
+  a.write("Typing", "first\n")
+  a.run()
+  a.write("Typing", "second\n")
+  a.run()
+  check("your own push coming back isn't a conflict", [t for t in a.titles() if t.startswith("Typing")], ["Typing"])
+  check("and what you typed since is kept", a.read("Typing"), "second\n")
+
   stranger = Device("c", url, crypto.new_key())
   with stranger.dirs():
     stranger.sync.run()

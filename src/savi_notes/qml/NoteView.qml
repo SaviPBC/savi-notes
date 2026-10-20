@@ -584,18 +584,17 @@ FocusScope {
           Rectangle {
             id: tagChip
             required property string modelData
-            readonly property bool own: pane.ownTags.indexOf(modelData) >= 0
             width: tagLabel.implicitWidth + Style.space(18) + (removeTag.visible ? removeTag.width + Style.space(4) : 0)
             height: Style.space(24)
             radius: height / 2
-            color: own ? Util.alpha(Colors.accent, 0.16) : Util.alpha(Colors.foreground, 0.05)
+            color: Util.alpha(Colors.accent, 0.16)
 
             Text {
               id: tagLabel
               x: Style.space(9)
               anchors.verticalCenter: parent.verticalCenter
               text: "#" + tagChip.modelData
-              color: tagChip.own ? Colors.accent : Util.alpha(Colors.foreground, 0.55)
+              color: Colors.accent
               font.pixelSize: Style.font.bodySmall
             }
             MouseArea {
@@ -610,7 +609,7 @@ FocusScope {
               anchors.left: tagLabel.right
               anchors.leftMargin: Style.space(4)
               anchors.verticalCenter: parent.verticalCenter
-              visible: tagChip.own && tagMouse.containsMouse || removeMouse.containsMouse
+              visible: tagMouse.containsMouse || removeMouse.containsMouse
               text: String.fromCodePoint(0xf0156)
               color: removeMouse.containsMouse ? Colors.urgent : Util.alpha(Colors.accent, 0.8)
               font.family: Style.font.icon
@@ -621,7 +620,7 @@ FocusScope {
                 anchors.margins: -Style.space(3)
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                onClicked: pane.setTags(pane.ownTags.filter(function(t) { return t !== tagChip.modelData }))
+                onClicked: pane.untag(tagChip.modelData)
               }
             }
           }

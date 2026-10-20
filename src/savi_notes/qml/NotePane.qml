@@ -88,6 +88,19 @@ QtObject {
     })
   }
 
+  // Off the note entirely: its tags list, and #tag written in the text.
+  function untag(tag) {
+    if (!pane.path) return
+    var target = pane.path
+    save(function() {
+      app.call("untag", { path: target, tag: tag }, function(reply) {
+        if (reply.error) { app.showStatus(reply.error, true); return }
+        pane.open(target)
+        app.reload()
+      })
+    })
+  }
+
   function rename(title) {
     title = title.trim()
     if (!pane.note || !title || title === pane.note.title) return
