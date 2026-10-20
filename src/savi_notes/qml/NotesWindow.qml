@@ -102,6 +102,30 @@ Window {
   Timer { id: quitTimer; interval: 4000; onTriggered: Qt.quit() }
   Timer { id: reloadTimer; interval: 1500; onTriggered: window.reload() }
 
+  // Qt draws some dialogs itself (the file dialog on Linux) from this window's palette.
+  function shade(amount) { return Qt.tint(Colors.background, Util.alpha(Colors.foreground, amount)) }
+  palette {
+    window: Colors.background
+    windowText: Colors.foreground
+    base: shade(0.04)
+    alternateBase: shade(0.08)
+    text: Colors.foreground
+    button: shade(0.1)
+    buttonText: Colors.foreground
+    brightText: Colors.foreground
+    light: shade(0.16)
+    midlight: shade(0.12)
+    mid: shade(0.3)
+    dark: shade(0.45)
+    shadow: Colors.background
+    placeholderText: shade(0.5)
+    highlight: Colors.accent
+    highlightedText: Colors.foreground
+    toolTipBase: Colors.background
+    toolTipText: Colors.foreground
+    link: Colors.accent
+  }
+
   Component.onCompleted: {
     var first = paneComponent.createObject(window)
     window.panes = [first]
