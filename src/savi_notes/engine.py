@@ -954,11 +954,12 @@ class Articles:
     except (account.Offline, account.Refused, account.SignedOut):
       return []
     rows = [{"path": ARTICLE + a["key"], "title": a["title"], "department": d["name"], "status": a["status"],
-             "editable": a["editable"],
+             "editable": a.get("editable", True),
              "mtime": int(datetime.datetime.fromisoformat(a["updated_at"]).timestamp()) if a["updated_at"] else 0}
             for d in departments for a in d["articles"]]
     # "departments" are the ones this person can start an article in.
-    return {"departments": [d["name"] for d in departments if d["editable"]], "articles": rows}
+    # A gateway from before every article was listed sends only editable ones, unflagged.
+    return {"departments": [d["name"] for d in departments if d.get("editable", True)], "articles": rows}
 
   def read(self, key):
     if key not in self.open:
