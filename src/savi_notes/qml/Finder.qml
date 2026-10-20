@@ -50,6 +50,10 @@ Item {
     return (tab === "settings" ? settingsRows : fileActions).filter(function(a) { return a.label.toLowerCase().indexOf(typed) >= 0 })
   }
 
+  // With no notes yet, the way to bring them in from elsewhere.
+  readonly property bool offersImport: tab === "notes" && !picker && app.loaded && app.notes.length === 0 && !app.query.trim()
+  readonly property var importRow: ({ label: "Import notes", glyph: 0xf02fa, hint: "From Obsidian or any folder of Markdown", run: function() { app.importNotes() } })
+
   // A "New note" row follows the matches whenever the query isn't an exact title.
   readonly property bool offersCreate: tab === "notes" && app.query.trim() !== "" && !app.byTitle[app.query.trim().toLowerCase()]
   // On Tags, a name no note carries yet offers to add it to the open note,
@@ -84,7 +88,7 @@ Item {
     return app.departments
   }
   readonly property int rowCount: actionTab ? visibleActions.length : tab === "tags" ? visibleTags.length + (newTag ? 1 : 0)
-    : articleTab ? visibleArticles.length + articleCreates.length : app.visibleNotes.length + (offersCreate ? 1 : 0)
+    : articleTab ? visibleArticles.length + articleCreates.length : offersImport ? 1 : app.visibleNotes.length + (offersCreate ? 1 : 0)
   // The "New note" row leads the list; notes follow it.
   readonly property int noteOffset: offersCreate ? 1 : 0
   readonly property var selectedNote: tab === "notes" ? app.visibleNotes[selected - noteOffset] || null
@@ -143,6 +147,7 @@ Item {
   }
 
   function activate(index) {
+    if (offersImport) { close(); importRow.run(); return }
     if (actionTab) {
       var action = visibleActions[index]
       if (!action) return
@@ -467,7 +472,7 @@ Item {
         id: row
         required property int index
         readonly property bool isTag: finder.tab === "tags"
-        readonly property var action: finder.actionTab ? finder.visibleActions[index] || null : null
+        readonly property var action: finder.actionTab ? finder.visibleActions[index] || null : finder.offersImport ? finder.importRow : null
         readonly property var tagItem: isTag && index < finder.visibleTags.length ? finder.visibleTags[index] : null
         readonly property bool isArticleRow: finder.articleTab
         readonly property bool isCreate: action ? false : isTag ? index >= finder.visibleTags.length
@@ -562,7 +567,7 @@ Item {
         width: parent.width - Style.space(30)
         horizontalAlignment: Text.AlignHCenter
         wrapMode: Text.Wrap
-        visible: finder.rowCount === 0 && app.loaded
+        visible: (finder.rowCount === 0 || finder.offersImport) && app.loaded
         text: finder.tab === "tags" ? (app.tagCounts.length ? "No tags match" : "No tags yet")
             : finder.articleTab ? "No articles yet.\nType a title above to start one."
             : app.activeTags.length ? "No notes carry all of these tags"
