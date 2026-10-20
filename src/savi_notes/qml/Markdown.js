@@ -866,6 +866,8 @@ function tint(src, theme) {
   return "<div style=\"white-space:pre-wrap; color:" + fg + ";\">" + src.split("\n").map(function(line) {
     if (/^\s*(```|~~~)/.test(line)) { fenced = !fenced; return color(dim, esc(line)) }
     if (fenced) return color(dim, esc(line))
+    // A rule, before *** and ___ are read as emphasis markers with one left over.
+    if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(line)) return color(dim, esc(line))
     var m = line.match(/^(#{1,6}\s)(.*)$/)
     if (m) return color(accent, esc(m[1])) + color(fg, esc(m[2]))
     var lead = ""

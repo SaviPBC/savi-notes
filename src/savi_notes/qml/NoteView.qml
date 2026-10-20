@@ -152,13 +152,17 @@ FocusScope {
       focusEditor()
       if (at >= 0) keepAt(editor, at, reader.positionToRectangle(p).y - top)
     } else {
-      var from = editor.positionAt(0, top + 1)
-      var offset = editor.positionToRectangle(from).y - top
+      // The cursor's line when it's in view, as it's what was being looked at.
+      var cursorY = editor.cursorRectangle.y - top
+      var from = cursorY >= 0 && cursorY < page.height ? editor.cursorPosition : editor.positionAt(0, top + 1)
       pane.editing = false
       pane.save()
       render()
       reader.forceActiveFocus()
-      Qt.callLater(function() { var r = renderedAt(from); if (r >= 0) keepAt(reader, r, offset) })
+      Qt.callLater(function() {
+        var found = renderedAt(from)
+        if (found) keepAt(reader, found.rendered, editor.positionToRectangle(found.source).y - top)
+      })
     }
   }
 
@@ -187,31 +191,42 @@ FocusScope {
       if (found >= 0) at = found + needle.length
     }
     if (at < 0) {
-      var ahead = plain.slice(p, p + 12).replace(/[\u2029\n].*$/, "")
-      at = ahead.trim().length >= 3 ? source.indexOf(ahead) : -1
+      // The line from its start, so a click near it isn't matched on a scrap of a word.
+      // [\s\S], not ".": "." stops at U+2029, which separates the reader's paragraphs.
+      var whole = plain.slice(lineStart, lineStart + 24).replace(/[\u2029\n][\s\S]*$/, "")
+      if (whole.trim().length < 3) return -1
+      var times = plain.slice(0, lineStart).split(whole).length
+      for (var j = 0; j < times; j++) { at = source.indexOf(whole, at + 1); if (at < 0) break }
+      if (at >= 0) at += p - lineStart
     }
     return at
   }
 
-  // The reverse: the first run of words on the source line at s (or the next lines, past
-  // fences and rules), found in the rendered text the same number of times in.
+  // The reverse: the first source line from s on that renders as text (not inside a code
+  // fence or a table's rule row), found in the rendered text as many times in. Returns
+  // { source, rendered } positions, or null.
   function renderedAt(s) {
     var source = pane.body, plain = reader.getText(0, reader.length)
     var start = source.lastIndexOf("\n", s - 1) + 1
-    for (var tries = 0; tries < 6 && start < source.length; tries++) {
+    var fenced = (source.slice(0, start).match(/^\s*(```|~~~)/gm) || []).length % 2 === 1
+    for (var tries = 0; tries < 40 && start < source.length; tries++) {
       var end = source.indexOf("\n", start)
       if (end < 0) end = source.length
-      var words = source.slice(start, end).match(/[A-Za-z0-9][A-Za-z0-9 ,.'-]{2,23}/)
-      if (words) {
-        var needle = words[0].trim()
-        var nth = source.slice(0, start).split(needle).length
-        var found = -1
-        for (var i = 0; i < nth; i++) { found = plain.indexOf(needle, found + 1); if (found < 0) break }
-        if (found >= 0) return found
+      var line = source.slice(start, end)
+      if (/^\s*(```|~~~)/.test(line)) fenced = !fenced
+      else if (!fenced && !/^\s*\|?[\s:|-]+\|?\s*$/.test(line)) {
+        var words = line.match(/[A-Za-z0-9][A-Za-z0-9 ,.'-]{2,23}/)
+        if (words) {
+          var needle = words[0].trim()
+          var nth = source.slice(0, start).split(needle).length
+          var found = -1
+          for (var i = 0; i < nth; i++) { found = plain.indexOf(needle, found + 1); if (found < 0) break }
+          if (found >= 0) return { source: start, rendered: found }
+        }
       }
       start = end + 1
     }
-    return -1
+    return null
   }
 
   function focusEditor() {
