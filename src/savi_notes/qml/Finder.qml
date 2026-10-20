@@ -38,7 +38,7 @@ Item {
       run: function() { App.setTheme({ system: "dark", dark: "light", light: "system" }[App.theme]) } }
   ]).concat([
     { label: "Find notes by meaning", glyph: 0xf0349, hint: App.semantic ? "On" : "Off", stay: true, run: function() { App.setSemantic(!App.semantic) } },
-    { label: "Import notes", glyph: 0xf02fa, hint: "From Obsidian, Wolfen Notes or an export", run: function() { app.importNotes() } },
+    { label: "Import notes", glyph: 0xf02fa, hint: "From Obsidian or any folder of Markdown", run: function() { app.importNotes() } },
     { label: "Export all notes", glyph: 0xf0207, hint: "A folder of Markdown files", run: function() { app.exportAll() } },
     { label: "Copy recovery key", glyph: 0xf0306, hint: "For your other computers", run: function() { App.copy(App.recoveryKey); app.showStatus("Recovery key copied", false) } },
     { label: "Sign out", glyph: 0xf0343, hint: App.email, danger: true, run: function() { app.confirmSignOut() } },
