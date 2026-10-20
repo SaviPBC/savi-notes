@@ -223,7 +223,7 @@ Window {
   function articleEntry(a) {
     return { path: a.path, title: a.title, tags: [], ownTags: [], backlinks: [], links: [],
              snippet: a.department + (a.status === "ready" ? "" : " · " + a.status),
-             mtime: a.mtime, article: true, department: a.department, status: a.status }
+             mtime: a.mtime, article: true, department: a.department, status: a.status, editable: a.editable !== false }
   }
 
   function loadArticles() {

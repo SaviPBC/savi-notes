@@ -18,18 +18,21 @@ Item {
   // "This file" leads while a note is open.
   readonly property var tabs: (app.current ? [{ id: "file", label: "This file" }] : [])
     .concat([{ id: "notes", label: "Notes" }, { id: "tags", label: "Tags" }])
-    .concat(app.departments.length ? [{ id: "articles", label: "Articles" }] : [])
+    .concat(app.articles.length || app.departments.length ? [{ id: "articles", label: "Articles" }] : [])
     .concat([{ id: "settings", label: "Settings" }])
   readonly property bool onArticle: !!app.current && !!app.current.article
+  readonly property bool readOnly: onArticle && !app.current.editable
   readonly property var fileActions: (onArticle ? [] : [
     { label: "Add tag", glyph: 0xf0722, run: function() { app.addTagFromFinder() } }
+  ]).concat(readOnly ? [] : [
+    { label: "Rename", glyph: 0xf0455, run: function() { app.renameFromFinder() } }
   ]).concat([
-    { label: "Rename", glyph: 0xf0455, run: function() { app.renameFromFinder() } },
     { label: "Open note split right", glyph: 0xf0bcc, run: function() { app.openSplit("right") } },
     { label: "Open note split down", glyph: 0xf0bcb, run: function() { app.openSplit("down") } }
   ].concat(app.panes.length > 1 ? [{ label: "Close split", glyph: 0xf0158, run: function() { app.closePane(app.activePane) } }] : []).concat([
     { label: "Export as PDF", glyph: 0xf0226, hint: Style.ctrl + "+Shift+E", run: function() { app.exportPdf() } },
     { label: "Export as Markdown", glyph: 0xf0354, run: function() { app.exportMarkdown() } },
+  ]).concat(readOnly ? [] : [
     { label: onArticle ? "Delete article" : "Delete note", glyph: 0xf09e7, danger: true, run: function() { app.confirmDelete() } }
   ]))
   // Settings rows stay open after Enter, so the new value shows.
@@ -496,6 +499,7 @@ Item {
           text: row.action ? String.fromCodePoint(row.action.glyph)
               : row.isCreate ? String.fromCodePoint(row.isTag ? 0xf0722 : 0xf039d)
               : row.isTag ? String.fromCodePoint(row.chosen ? 0xf012c : 0xf04f9)
+              : row.note && row.note.article ? String.fromCodePoint(row.note.editable ? 0xf03eb : 0xf033e)
               : String.fromCodePoint(0xf0219)
           color: row.action && row.action.danger ? Colors.urgent : row.isCreate || row.chosen ? Colors.accent : Util.alpha(Colors.foreground, 0.55)
           font.family: Style.font.icon
@@ -595,7 +599,8 @@ Item {
         visible: finder.articleTab
         text: {
           var d = app.departments
-          return (d.length > 1 ? d.slice(0, -1).join(", ") + " and " + d[d.length - 1] : d.join("")) + " internal articles on the AI Core"
+          if (!d.length) return "Internal articles on the AI Core, read only"
+          return "You can edit and create " + (d.length > 1 ? d.slice(0, -1).join(", ") + " and " + d[d.length - 1] : d[0]) + " articles here"
         }
         color: Util.alpha(Colors.foreground, 0.45)
         font.pixelSize: Style.font.caption

@@ -40,6 +40,8 @@ FocusScope {
   }
 
   readonly property var note: pane.note
+  // An internal article this person can read but not edit.
+  readonly property bool readOnly: !!note && !!note.article && note.editable === false
   // Obsidian's reading view: 15px sans text in a 700px column.
   readonly property int columnWidth: Math.min(Math.round(700 * Style.fontScale), width - Style.space(96))
   readonly property int bodySize: Style.fontPx(1.25)
@@ -145,7 +147,7 @@ FocusScope {
   // Switching keeps what was at the top of the view at the same height on screen: source
   // and rendered text lay out differently, so the same scroll offset would show elsewhere.
   function toggleEditing() {
-    if (!note) return
+    if (!note || (readOnly && !pane.editing)) return
     var top = Math.max(0, page.contentY - column.y - body.y)
     if (!pane.editing) {
       var p = reader.positionAt(0, top + 1)
@@ -231,6 +233,7 @@ FocusScope {
   }
 
   function focusEditor() {
+    if (readOnly) return
     pane.editing = true
     editor.forceActiveFocus()
   }
@@ -433,6 +436,7 @@ FocusScope {
   // A click on the rendered note edits it, with the cursor near where the
   // click landed: the words before it are looked for in the source.
   function editAt(x, y) {
+    if (readOnly) return
     var p = reader.positionAt(x, y)
     var at = sourceAt(p)
     var offset = reader.positionToRectangle(p).y - Math.max(0, page.contentY - column.y - body.y)
@@ -540,6 +544,7 @@ FocusScope {
 
         TextEdit {
           id: titleInput
+          readOnly: view.readOnly
           width: parent.width - actions.width - Style.space(12)
           text: view.note ? view.note.title : ""
           wrapMode: TextEdit.Wrap
@@ -941,7 +946,8 @@ FocusScope {
     Text {
       anchors.centerIn: parent
       visible: !app.status
-      text: Style.ctrl + " + E to edit"
+      text: !view.readOnly ? Style.ctrl + " + E to edit"
+          : view.note.department === "Other" ? "Read only" : "Read only: only " + view.note.department + " editors can change it"
       color: Util.alpha(Colors.foreground, 0.35)
       font.pixelSize: Style.font.caption
     }

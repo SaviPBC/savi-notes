@@ -937,10 +937,10 @@ ARTICLE = "articles:"
 
 
 class Articles:
-  """The finder's Articles tab: internal articles of the departments this person edits on the
-  AI Core. They are company content everyone's Claude searches, not personal notes, so they are
-  plaintext and live on the gateway only. An open article's edits stay a draft here until the
-  editor is left, because publishing re-indexes it for everyone."""
+  """The finder's Articles tab: every internal article on the AI Core, editable where this person
+  edits the department. They are company content everyone's Claude searches, not personal notes,
+  so they are plaintext and live on the gateway only. An open article's edits stay a draft here
+  until the editor is left, because publishing re-indexes it for everyone."""
 
   def __init__(self, sync):
     self.sync = sync
@@ -954,9 +954,11 @@ class Articles:
     except (account.Offline, account.Refused, account.SignedOut):
       return []
     rows = [{"path": ARTICLE + a["key"], "title": a["title"], "department": d["name"], "status": a["status"],
+             "editable": a["editable"],
              "mtime": int(datetime.datetime.fromisoformat(a["updated_at"]).timestamp()) if a["updated_at"] else 0}
             for d in departments for a in d["articles"]]
-    return {"departments": [d["name"] for d in departments], "articles": rows}
+    # "departments" are the ones this person can start an article in.
+    return {"departments": [d["name"] for d in departments if d["editable"]], "articles": rows}
 
   def read(self, key):
     if key not in self.open:
