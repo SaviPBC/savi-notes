@@ -339,12 +339,19 @@ class Vault:
         found[name] = {"file": path, "width": width, "height": height}
     return found
 
-  def write_text(self, rel, text):
+  def write_text(self, rel, text, mtime=None):
+    """mtime: when a pulled note was edited on the device it came from, kept as the file's."""
     path = self.path_of(rel)
     tmp = path + ".savi-tmp"
     with open(tmp, "w", encoding="utf-8") as f:
       f.write(text)
+    if mtime:
+      os.utime(tmp, (mtime, mtime))
     os.replace(tmp, path)
+    self.refresh(rel)
+
+  def set_mtime(self, rel, mtime):
+    os.utime(self.path_of(rel), (mtime, mtime))
     self.refresh(rel)
 
   def save(self, rel, body=None, tags=None):

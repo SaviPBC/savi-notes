@@ -76,8 +76,16 @@ class Sync:
       create table if not exists files (id text primary key, name text unique, hash text);
     """)
     self.db_lock = threading.Lock()
+    self.restamp = self.unstamped()
 
   # ---------------------------------------------------------------- state
+
+  def unstamped(self):
+    """Notes synced before the edit time travelled with them: each goes up once more so
+    other devices get it. Nothing on a device that has yet to pull."""
+    if self.q("select 1 from meta where k = 'stamped'"):
+      return set()
+    return {id_ for id_, in self.q("select id from notes")}
 
   def q(self, sql, *args):
     with self.db_lock:
@@ -213,11 +221,21 @@ class Sync:
     if (current is not None and current.replace(b"\r\n", b"\n") == plain["text"].encode("utf-8")
         and os.path.basename(path)[:-3] == plain["title"]):
       self.q("update notes set revision = ?, hash = ? where id = ?", note["revision"], digest(current), note["id"])
+      # The same text with another time: a device that pulled before the time travelled
+      # has the pull's, which is never before the edit's, so the earlier time is the real
+      # one. Take it, or send ours back.
+      if plain.get("mtime"):
+        have = int(os.path.getmtime(self.local(path)))
+        if plain["mtime"] < have:
+          self.vault.set_mtime(path, plain["mtime"])
+          return True
+        if plain["mtime"] > have:
+          self.restamp.add(note["id"])
       return False
 
     if edited_here:
       stamp = datetime.date.today().isoformat()
-      self.vault.write_text(self.vault.free_name("%s (conflict %s)" % (plain["title"], stamp)), plain["text"])
+      self.vault.write_text(self.vault.free_name("%s (conflict %s)" % (plain["title"], stamp)), plain["text"], plain.get("mtime"))
       self.q("update notes set revision = ? where id = ?", note["revision"], note["id"])
       self.conflicts += 1
       return True
@@ -228,7 +246,7 @@ class Sync:
       os.replace(self.local(path), self.local(target))
       with self.vault.lock:
         self.vault.notes.pop(path, None)
-    self.vault.write_text(target, plain["text"])
+    self.vault.write_text(target, plain["text"], plain.get("mtime"))
     # Hashed as written, not as received: Windows writes the newlines back as CRLF.
     written = read_bytes(self.local(target)) or b""
     self.q("insert or replace into notes values (?, ?, ?, ?)", note["id"], target.replace(os.sep, "/"), note["revision"], digest(written))
@@ -276,11 +294,12 @@ class Sync:
         text = read_bytes(self.local(rel))
         if text is None:
           continue
+        mtime = int(os.stat(self.local(rel)).st_mtime)
         row = rows.get(rel)
         if not row:
-          work.append(("note", str(uuid.uuid4()), rel, text, 0))
-        elif row[2] != digest(text):
-          work.append(("note", row[0], rel, text, row[1]))
+          work.append(("note", str(uuid.uuid4()), rel, text, 0, mtime))
+        elif row[2] != digest(text) or row[0] in self.restamp:
+          work.append(("note", row[0], rel, text, row[1], mtime))
       work += [("gone", id_, revision) for path, (id_, revision, _) in rows.items() if path not in present]
 
       files = {name: (id_, synced) for id_, name, synced in self.q("select id, name, hash from files")}
@@ -305,9 +324,10 @@ class Sync:
       kind = item[0]
       try:
         if kind == "note":
-          _, id_, rel, text, base = item
+          _, id_, rel, text, base, mtime = item
           body = text.decode("utf-8", "replace").replace("\r\n", "\n")
-          plain = json.dumps({"title": os.path.basename(rel)[:-3], "text": body}).encode()
+          # The edit time goes inside the seal, so every device shows the same "edited".
+          plain = json.dumps({"title": os.path.basename(rel)[:-3], "text": body, "mtime": mtime}).encode()
           sealed = base64.b64encode(crypto.seal(self.key, plain, id_)).decode()
           reply = self.client.call("PUT", "/notes/" + id_, {"base_revision": base, "ciphertext": sealed})
           self.q("insert or replace into notes values (?, ?, ?, ?)", id_, rel, reply["revision"], digest(text))
@@ -333,6 +353,9 @@ class Sync:
           clean = False
         else:
           raise
+    if clean:
+      self.restamp = set()
+      self.q("insert or replace into meta values ('stamped', '1')")
     return clean
 
   def unsent(self):

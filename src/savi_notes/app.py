@@ -600,6 +600,9 @@ def run(note=""):
     skill.install()
   if not app_obj.needsSetup:
     import_legacy(cfg)
+    # The folder may be gone on a signed-in machine (a second device set up by hand, or
+    # someone cleared it); the first pull writes straight into it.
+    os.makedirs(config.vault_dir(), exist_ok=True)
     bridge.start(config.vault_dir())
 
   def connection():

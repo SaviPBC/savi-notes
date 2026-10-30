@@ -966,6 +966,103 @@ FocusScope {
     contentWidth: view.columnWidth
   }
 
+  // A hollow circle at an end of the scroller's line, taking it there.
+  component EndCircle: MouseArea {
+    id: endCircle
+    property string tip: ""
+    anchors.horizontalCenter: parent.horizontalCenter
+    width: Style.space(28)
+    height: Style.space(20)
+    hoverEnabled: true
+    cursorShape: Qt.PointingHandCursor
+    Rectangle {
+      anchors.centerIn: parent
+      width: Style.space(12)
+      height: width
+      radius: width / 2
+      color: Colors.background
+      border.width: scroller.stroke
+      border.color: endCircle.containsMouse ? Colors.foreground : scroller.ink
+    }
+    PanelToolTip { visible: endCircle.containsMouse; text: endCircle.tip }
+  }
+
+  // Scrolling shows a thin line down the right edge with a round handle on
+  // it and a hollow circle at each end that jumps there; it fades two
+  // seconds after the last movement. Drawn over the note, so nothing moves
+  // to make room for it.
+  Item {
+    id: scroller
+    visible: !!view.note && page.contentHeight > page.height + 1
+    readonly property bool shown: visible && (showTimer.running || rail.pressed || rail.containsMouse || toTop.containsMouse || toBottom.containsMouse)
+    readonly property real range: Math.max(1, page.contentHeight - page.height)
+    readonly property color ink: Util.alpha(Colors.foreground, 0.55)
+    readonly property int stroke: Math.max(1, Math.round(1.5 * Style.space(1)))
+    x: parent.width - width - Style.space(6)
+    y: Style.space(14)
+    width: Style.space(28)
+    height: (pane.editing ? formatBar.y : readBar.y) - y - Style.space(14)
+    opacity: shown ? 1 : 0
+    enabled: shown
+    Behavior on opacity { NumberAnimation { duration: scroller.shown ? 120 : 300; easing.type: Easing.OutCubic } }
+
+    Timer { id: showTimer; interval: 2000 }
+    Connections { target: page; function onContentYChanged() { showTimer.restart() } }
+
+    NumberAnimation { id: jump; target: page; property: "contentY"; duration: 260; easing.type: Easing.OutCubic }
+    function jumpTo(y) { jump.stop(); jump.to = y; jump.start() }
+
+    // The line, from circle to circle.
+    Rectangle {
+      anchors.horizontalCenter: parent.horizontalCenter
+      y: toTop.y + toTop.height
+      width: scroller.stroke
+      height: toBottom.y - y
+      color: scroller.ink
+    }
+
+    EndCircle { id: toTop; y: 0; tip: "Scroll to top"; onClicked: scroller.jumpTo(0) }
+    EndCircle { id: toBottom; y: parent.height - height; tip: "Scroll to bottom"; onClicked: scroller.jumpTo(scroller.range) }
+
+    // The handle's rail; pressing beside the handle brings it there.
+    MouseArea {
+      id: rail
+      anchors { left: parent.left; right: parent.right; top: toTop.bottom; bottom: toBottom.top }
+      hoverEnabled: true
+      property real grab: 0
+      readonly property real travel: Math.max(1, height - handle.height)
+      onPressed: function(mouse) {
+        var within = mouse.y >= handle.y && mouse.y < handle.y + handle.height
+        grab = within ? mouse.y - handle.y : handle.height / 2
+        if (!within) moveTo(mouse.y)
+      }
+      onPositionChanged: function(mouse) { if (pressed) moveTo(mouse.y) }
+      function moveTo(y) {
+        jump.stop()
+        page.contentY = Math.max(0, Math.min(scroller.range, (y - grab) / travel * scroller.range))
+      }
+
+      Rectangle {
+        id: handle
+        anchors.horizontalCenter: parent.horizontalCenter
+        width: Style.space(26)
+        height: width
+        y: rail.travel * page.contentY / scroller.range
+        radius: width / 2
+        color: Colors.background
+        border.width: scroller.stroke
+        border.color: rail.pressed || rail.containsMouse ? Colors.foreground : scroller.ink
+        Text {
+          anchors.centerIn: parent
+          text: String.fromCodePoint(0xf0a64)
+          color: rail.pressed || rail.containsMouse ? Colors.foreground : scroller.ink
+          font.family: Style.font.icon
+          font.pixelSize: Style.font.title
+        }
+      }
+    }
+  }
+
   PopupMenu {
     id: popupMenu
     onDismissed: editor.forceActiveFocus()

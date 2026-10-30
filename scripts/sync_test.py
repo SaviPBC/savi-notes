@@ -147,15 +147,25 @@ def main():
   a, b = Device("a", url, key), Device("b", url, key)
 
   a.write("Groceries", "tags: [home]\n\nmilk, eggs\n")
+  os.utime(os.path.join(a.vault.root, "Groceries.md"), (1700000000, 1700000000))
   a.run()
   b.run()
   check("a new note reaches the other device", b.read("Groceries"), "tags: [home]\n\nmilk, eggs\n")
-  check("the server never sees the text", any("milk" in (n["ciphertext"] or "") for n in store.notes.values()), False)
+  check("with the time it was edited", int(os.path.getmtime(os.path.join(b.vault.root, "Groceries.md"))), 1700000000)
 
-  b.write("Groceries", "tags: [home]\n\nmilk, eggs, bread\n")
+  # Notes that went up before the time travelled with them go up once more. A device with
+  # the same text takes an earlier time, as a pull's is never before the edit's, and
+  # answers a later one with its own.
+  os.utime(os.path.join(a.vault.root, "Groceries.md"), (1700000500, 1700000500))
+  os.utime(os.path.join(b.vault.root, "Groceries.md"), (1700009999, 1700009999))
+  b.sync.q("delete from meta where k = 'stamped'")
+  b.sync.restamp = b.sync.unstamped()
   b.run()
+  check("an older device's notes go up once more", b.sync.restamp, set())
   a.run()
-  check("an edit comes back", a.read("Groceries"), "tags: [home]\n\nmilk, eggs, bread\n")
+  check("a device keeps its earlier time and sends it", int(os.path.getmtime(os.path.join(a.vault.root, "Groceries.md"))), 1700000500)
+  b.run()
+  check("which the others take", int(os.path.getmtime(os.path.join(b.vault.root, "Groceries.md"))), 1700000500)
 
   a.write("Groceries", "from a\n")
   b.write("Groceries", "from b\n")
