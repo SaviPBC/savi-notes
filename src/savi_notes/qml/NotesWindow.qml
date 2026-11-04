@@ -3,16 +3,17 @@ import QtQuick.Window
 import QtQuick.Dialogs
 import Savi
 
-// Savi Notes: one window over a vault of markdown files organised by
+// Savi Notes: a window over a vault of markdown files organised by
 // tags. engine.py does the file work, search and sync; this window
 // keeps the open notes, in one pane or several splits, and the finder over
-// them.
+// them. Each launch opens another, all sharing the one engine.
 Window {
   id: window
   visible: true
 
   property string vault: App.vault
-  property string initialNote: App.initialNote
+  // Set by the host as it opens the window.
+  property string initialNote: ""
 
   property var notes: []
   property var byPath: ({})
@@ -97,8 +98,8 @@ Window {
     window.quit()
   }
 
-  // Save what is pending, then let the engine finish its last sync. Edits to an outside
-  // file are the person's to keep or not, so they're asked first.
+  // Save what is pending; the last window also lets the engine finish its last sync. Edits
+  // to an outside file are the person's to keep or not, so they're asked first.
   function quit(discard) {
     if (window.quitting) return
     saveAll(function() {
@@ -110,6 +111,7 @@ Window {
       }
       window.quitting = true
       window.visible = false
+      if (!App.leave(window)) return
       engine.close()
       quitTimer.start()
     })
@@ -160,7 +162,7 @@ Window {
     })
   }
 
-  // A second launch hands its note to this window; the host also reports
+  // A launch during setup hands its note to this window; the host also reports
   // a newer release.
   Connections {
     target: App

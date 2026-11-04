@@ -6,18 +6,17 @@ import QtQuick
 QtObject {
   id: engine
 
-  property int nextId: 1
   property var pending: ({})
   signal event(var message)
   signal exited(int code)
 
   function call(op, args, callback) {
-    var request = Object.assign({ id: engine.nextId++, op: op }, args || {})
+    var request = Object.assign({ id: EngineBridge.ticket(), op: op }, args || {})
     engine.pending[request.id] = callback || null
     EngineBridge.send(JSON.stringify(request))
   }
 
-  // Closing its input tells the engine the window is gone.
+  // Closing its input tells the engine the last window is gone.
   function close() { EngineBridge.close() }
 
   property Connections bridge: Connections {

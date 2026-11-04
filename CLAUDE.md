@@ -29,8 +29,9 @@ exception: company content, plaintext, edited through the gateway.
 ## Layout
 
 - `src/savi_notes/app.py` — the Qt Quick host (PySide6): loads the QML, runs
-  the engine as a child process (`EngineBridge`), keeps one window per
-  settings file (a second launch hands its note to the first), exports PDFs
+  the engine as a child process (`EngineBridge`), keeps one process per
+  settings file (a second launch hands its note to the first, which opens
+  it in a new window sharing the engine), exports PDFs
   with `QTextDocument`, checks GitHub's latest release and runs the update.
 - `src/savi_notes/engine.py` — everything done to the vault: scan, read,
   save, rename (fixing `[[links]]`), trash, attachments, hybrid search (words

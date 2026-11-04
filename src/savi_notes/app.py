@@ -1,5 +1,5 @@
 """The Savi Notes window: Qt Quick hosting the QML, the engine process beside
-it, one instance per user, signing in and the note key, PDF export and the
+it, one instance per user with a window per launch, signing in and the note key, PDF export and the
 update check."""
 
 import hashlib
@@ -45,6 +45,7 @@ class EngineBridge(QObject):
     self.proc.finished.connect(self.finished)
     self.vault = ""
     self.closing = False
+    self.next_id = 1
 
   def finished(self, code, status):
     self.ready = False
@@ -69,6 +70,12 @@ class EngineBridge(QObject):
     for text in self.queue:
       self.write(text)
     self.queue = []
+
+  @Slot(result=int)
+  def ticket(self):
+    """Request ids, counted here so replies to one window's requests never reach another's."""
+    self.next_id += 1
+    return self.next_id
 
   @Slot(str)
   def send(self, text):
@@ -126,10 +133,11 @@ class App(QObject):
   semanticChanged = Signal()
   updateChecked = Signal(str)
 
-  def __init__(self, cfg, initial_note, families, bridge):
+  def __init__(self, cfg, families, bridge):
     super().__init__()
     self.cfg = cfg
-    self.initial = initial_note
+    self.qml = None
+    self.windows = 0
     self.families = families
     self.bridge = bridge
     self.account = account.load()
@@ -435,10 +443,6 @@ class App(QObject):
   def vault(self):
     return config.vault_dir().replace("\\", "/")
 
-  @Property(str, constant=True)
-  def initialNote(self):
-    return self.initial
-
   @Property(str, notify=themeChanged)
   def theme(self):
     return self.cfg.get("theme", "system")
@@ -507,6 +511,20 @@ class App(QObject):
     except Exception as e:
       return str(e)
 
+  def open_window(self, note=""):
+    self.qml.setInitialProperties({"initialNote": note})
+    self.qml.load(QUrl.fromLocalFile(os.path.join(QML_DIR, "NotesWindow.qml")))
+    self.windows += 1
+    desktop.bring_forward()
+
+  @Slot(QObject, result=bool)
+  def leave(self, window):
+    """A window is closing: True when it was the last, which then stops the engine and quits."""
+    self.windows -= 1
+    if self.windows:
+      window.deleteLater()
+    return not self.windows
+
   @Slot(str)
   def runUpdate(self, version):
     """Install the release once this window has closed, then reopen."""
@@ -529,7 +547,7 @@ class App(QObject):
 
 
 def instance_name():
-  # One window per settings file, so a second launch opens in the first.
+  # One process per settings file, so every window shares its engine and sync.
   return "savi-notes-" + hashlib.sha1(config.path().encode("utf-8")).hexdigest()[:10]
 
 
@@ -547,7 +565,7 @@ def requested(note):
 
 
 def hand_to_running(note):
-  """True when another window took the request."""
+  """True when a running instance took the request."""
   sock = QLocalSocket()
   sock.connectToServer(instance_name())
   if not sock.waitForConnected(400):
@@ -607,7 +625,7 @@ def run(note=""):
   app.setFont(font)
 
   bridge = EngineBridge()
-  app_obj = App(cfg, note, {"ui": ui_family, "mono": mono_family, "icon": icon_family}, bridge)
+  app_obj = App(cfg, {"ui": ui_family, "mono": mono_family, "icon": icon_family}, bridge)
   # Before sign-in too, so whoever installed it through Claude Code can try the skill at once.
   if not config.DEV:
     from . import skill
@@ -627,10 +645,15 @@ def run(note=""):
     def read():
       for line in bytes(sock.readAll()).decode("utf-8", "replace").splitlines():
         try:
-          desktop.bring_forward()
-          app_obj.openRequested.emit(str(json.loads(line).get("open") or ""))
+          asked = str(json.loads(line).get("open") or "")
         except ValueError:
-          pass
+          continue
+        # Each launch is a window of its own, but setup happens in the one window there is.
+        if app_obj.needsSetup:
+          desktop.bring_forward()
+          app_obj.openRequested.emit(asked)
+        else:
+          app_obj.open_window(asked)
     sock.readyRead.connect(read)
   server.newConnection.connect(connection)
 
@@ -638,11 +661,11 @@ def run(note=""):
   engine.addImportPath(QML_DIR)
   engine.rootContext().setContextProperty("App", app_obj)
   engine.rootContext().setContextProperty("EngineBridge", bridge)
-  engine.load(QUrl.fromLocalFile(os.path.join(QML_DIR, "NotesWindow.qml")))
+  app_obj.qml = engine
+  app_obj.open_window(note)
   if not engine.rootObjects():
     sys.stderr.write("savi-notes: the window could not be created\n")
     return 1
-  desktop.bring_forward()
   from . import shortcuts
   if not app_obj.needsSetup and not config.DEV:
     shortcuts.install()
