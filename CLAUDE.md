@@ -37,7 +37,10 @@ exception: company content, plaintext, edited through the gateway.
   plus llama.cpp embeddings), remote images, math (ziamath, in process) and
   mermaid (external `mmdr` or `mmdc` only), and `Articles` (ops on an
   `articles:<key>` path go to the gateway; drafts publish when the editor is
-  left). JSON lines on stdin/stdout; `python -m savi_notes.engine serve VAULT`.
+  left), and `Outside` (a `file:<path>` is a markdown file opened from
+  elsewhere: edits stay a draft until Save writes the file or Import makes it
+  a note; Linux's desktop entry and Windows' Open with hand such files to the
+  app, macOS doesn't yet). JSON lines on stdin/stdout; `python -m savi_notes.engine serve VAULT`.
 - `sync.py` — pull since a cursor, push what changed, against
   `/notes/v1`; `sync.sqlite` holds each note's id, confirmed revision and the
   hash of the file as last synced. Both-sides edits keep the local text and

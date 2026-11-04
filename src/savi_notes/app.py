@@ -533,6 +533,19 @@ def instance_name():
   return "savi-notes-" + hashlib.sha1(config.path().encode("utf-8")).hexdigest()[:10]
 
 
+def requested(note):
+  """What a launch asked to open: a note's title, or a markdown file given by path or file://
+  URL (a file manager's Open With), as file:PATH. A file in the vault is its note."""
+  if note.startswith("file://"):
+    note = QUrl(note).toLocalFile()
+  if os.path.splitext(note)[1].lower() not in (".md", ".markdown") or not os.path.isfile(note):
+    return note
+  path = os.path.realpath(note)
+  if path.startswith(os.path.realpath(config.vault_dir()) + os.sep):
+    return os.path.splitext(os.path.basename(path))[0]
+  return "file:" + path.replace("\\", "/")
+
+
 def hand_to_running(note):
   """True when another window took the request."""
   sock = QLocalSocket()
@@ -576,6 +589,7 @@ def run(note=""):
   app = QGuiApplication(sys.argv[:1])
   app.setWindowIcon(QIcon(ICON))
 
+  note = requested(note)
   if hand_to_running(note):
     return 0
   QLocalServer.removeServer(instance_name())

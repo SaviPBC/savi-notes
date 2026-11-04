@@ -28,7 +28,8 @@ FocusScope {
   }
 
   function saveAndRead() {
-    pane.save()
+    if (outside) pane.writeFile()
+    else pane.save()
     if (pane.editing) toggleEditing()
   }
 
@@ -42,6 +43,8 @@ FocusScope {
   readonly property var note: pane.note
   // An internal article this person can read but not edit.
   readonly property bool readOnly: !!note && !!note.article && note.editable === false
+  // A markdown file opened from elsewhere: edited here, saved back to the file or imported.
+  readonly property bool outside: !!note && !!note.outside
   // Obsidian's reading view: 15px sans text in a 700px column.
   readonly property int columnWidth: Math.min(Math.round(700 * Style.fontScale), width - Style.space(96))
   readonly property int bodySize: Style.fontPx(1.25)
@@ -544,7 +547,7 @@ FocusScope {
 
         TextEdit {
           id: titleInput
-          readOnly: view.readOnly
+          readOnly: view.readOnly || view.outside
           width: parent.width - actions.width - Style.space(12)
           text: view.note ? view.note.title : ""
           wrapMode: TextEdit.Wrap
@@ -636,7 +639,7 @@ FocusScope {
         Rectangle {
           id: addTag
           property bool adding: false
-          visible: !view.note || !view.note.article
+          visible: !view.note || !(view.note.article || view.note.outside)
           width: adding ? Style.space(150) : addLabel.implicitWidth + Style.space(18)
           height: Style.space(24)
           radius: height / 2
@@ -725,6 +728,9 @@ FocusScope {
       }
 
       Text {
+        width: parent.width
+        // A long path gives way in the middle.
+        elide: Text.ElideMiddle
         text: {
           if (!view.note) return ""
           var words = (pane.body.match(/\S+/g) || []).length
@@ -732,6 +738,8 @@ FocusScope {
           var count = words + (words === 1 ? " word" : " words")
           if (view.note.article)
             return view.note.department + " internal article  ·  " + (view.note.status === "draft" ? "not published yet" : "published " + edited) + "  ·  " + count
+          if (view.outside)
+            return "Local file - " + view.note.file.replace(App.home, "~") + (view.note.unsaved ? "  ·  edits not saved to the file" : "")
           return "Edited " + edited + "  ·  " + count
         }
         color: Util.alpha(Colors.foreground, 0.4)

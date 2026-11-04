@@ -325,15 +325,16 @@ class Vault:
     meta, body = split_frontmatter(text)
     return {"path": rel, "body": body, "tags": frontmatter_tags(meta), "embeds": self.embeds(body)}
 
-  def embeds(self, body):
-    """Files embedded in a note, with pixel sizes for images."""
+  def embeds(self, body, beside=None):
+    """Files embedded in a note, with pixel sizes for images. beside: the folder of a file
+    opened from outside the vault, where its images are looked for first."""
     found = {}
     names = [m.group(2).strip() for m in WIKILINK.finditer(body) if m.group(1)]
     names += [urllib.parse.unquote(m) for m in re.findall(r"!\[[^\]]*\]\(([^)\s]+)", body) if not m.startswith("http")]
     for name in names:
       if name in found:
         continue
-      path = self.attachment(name)
+      path = beside and os.path.isfile(os.path.join(beside, name)) and os.path.join(beside, name) or self.attachment(name)
       if path and not path.endswith(".md"):
         width, height = image_size(path)
         found[name] = {"file": path, "width": width, "height": height}
@@ -1019,6 +1020,70 @@ class Articles:
         sys.stderr.write("savi-notes engine: could not publish %s: %s\n" % (key, e))
 
 
+# ------------------------------------------------------------------ outside files
+
+FILE = "file:"
+
+
+class Outside:
+  """Markdown files opened from elsewhere (a file manager's Open With, or a path on the command
+  line). Edits stay a draft here until the person saves them to the file or imports it as a note,
+  since the file is theirs and not ours to rewrite as they type."""
+
+  def __init__(self, vault):
+    self.vault = vault
+    self.drafts = {}
+
+  def disk(self, path):
+    with open(path, encoding="utf-8", errors="replace") as f:
+      return f.read()
+
+  def text(self, path):
+    return self.drafts[path] if path in self.drafts else self.disk(path)
+
+  def entry(self, path):
+    return {"path": FILE + path.replace(os.sep, "/"), "title": os.path.basename(path),
+            "outside": True, "unsaved": path in self.drafts, "file": path.replace(os.sep, "/"),
+            "mtime": int(os.stat(path).st_mtime), "tags": [], "ownTags": [], "links": [], "backlinks": [], "snippet": ""}
+
+  def read(self, path):
+    meta, body = split_frontmatter(self.text(path))
+    return {"path": FILE + path.replace(os.sep, "/"), "body": body, "tags": [],
+            "embeds": self.vault.embeds(body, os.path.dirname(path)), "note": self.entry(path)}
+
+  def save(self, path, body):
+    meta, old = split_frontmatter(self.text(path))
+    text = join_note(meta, body)
+    if text == self.disk(path):
+      self.drafts.pop(path, None)
+    else:
+      self.drafts[path] = text
+    return self.entry(path)
+
+  def write(self, path):
+    if path in self.drafts:
+      with open(path, "w", encoding="utf-8") as f:
+        f.write(self.drafts.pop(path))
+    return self.entry(path)
+
+  def bring_in(self, path):
+    """A note made from the file, with the images beside it copied into Attachments/. The
+    file itself is left where it was, as it was."""
+    v = self.vault
+    text = self.text(path)
+    meta, body = split_frontmatter(text)
+    for name, info in v.embeds(body, os.path.dirname(path)).items():
+      if info["file"].startswith(v.root + os.sep):
+        continue
+      kept = v.attach(info["file"])
+      if kept != name:
+        text = text.replace(name, kept).replace(urllib.parse.quote(name), urllib.parse.quote(kept))
+    rel = v.free_name(os.path.splitext(os.path.basename(path))[0])
+    v.write_text(rel, text)
+    self.drafts.pop(path, None)
+    return rel
+
+
 # ------------------------------------------------------------------ server
 
 class Engine:
@@ -1029,6 +1094,7 @@ class Engine:
     self.index = Index(self.vault, self.embedder)
     self.sync = Sync(self.vault, emit, self.pulled)
     self.articles = Articles(self.sync)
+    self.outside = Outside(self.vault)
     self.assets = Assets(self.vault)
     self.index_timer = None
 
@@ -1091,11 +1157,32 @@ class Engine:
       return self.articles.publish(key)
     raise ValueError("articles can't do " + op)
 
+  def file(self, req):
+    """Ops on a file: path act on a markdown file outside the vault."""
+    op, path = req["op"], os.path.realpath(req["path"][len(FILE):])
+    if op == "read":
+      return self.outside.read(path)
+    if op == "save":
+      return {"note": self.outside.save(path, req["body"]) if req.get("body") is not None else self.outside.entry(path)}
+    if op == "write":
+      return {"note": self.outside.write(path)}
+    if op == "bringIn":
+      rel = self.outside.bring_in(path)
+      self.edited()
+      return {"path": rel}
+    if op == "export":
+      with open(req["out"], "w", encoding="utf-8") as f:
+        f.write(self.outside.text(path))
+      return {}
+    raise ValueError("a file outside Savi Notes can't do " + op)
+
   def handle(self, req):
     op = req.get("op")
     v = self.vault
     if str(req.get("path", "")).startswith(ARTICLE):
       return self.article(req)
+    if str(req.get("path", "")).startswith(FILE):
+      return self.file(req)
     if op == "articles":
       return self.articles.listing() or {"departments": [], "articles": []}
     if op == "newArticle":

@@ -14,12 +14,21 @@ Item {
   property bool destructive: true
   property int selectedIndex: 1
 
+  // False when Escape or a click beside the card should only close it (dismissed), not cancel.
+  property bool dismissCancels: true
+
   signal canceled()
   signal confirmed()
+  signal dismissed()
+
+  function dismiss() {
+    if (root.dismissCancels) root.canceled()
+    else root.dismissed()
+  }
 
   function handleKey(event) {
     if (!root.opened) return false
-    if (event.key === Qt.Key_Escape) { root.canceled(); return true }
+    if (event.key === Qt.Key_Escape) { root.dismiss(); return true }
     if (event.key === Qt.Key_Left || event.key === Qt.Key_Right || event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
       root.selectedIndex = root.selectedIndex === 0 ? 1 : 0
       return true
@@ -38,7 +47,7 @@ Item {
     anchors.fill: parent
     color: Util.alpha(Colors.background, 0.7)
 
-    MouseArea { anchors.fill: parent; onClicked: root.canceled() }
+    MouseArea { anchors.fill: parent; onClicked: root.dismiss() }
 
     BorderSurface {
       id: card

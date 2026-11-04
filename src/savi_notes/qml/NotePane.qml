@@ -17,6 +17,7 @@ QtObject {
   property bool editing: false
   property bool dirty: false
   readonly property bool isArticle: path.indexOf("articles:") === 0
+  readonly property bool isOutside: path.indexOf("file:") === 0
 
   // An article publishes when its editor is left, not as it is typed: each publish
   // re-indexes it for everyone's Claude.
@@ -41,6 +42,7 @@ QtObject {
       app.call("read", { path: target }, function(reply) {
         if (reply.error) { app.showStatus("Could not open " + target, true); return }
         var changed = target !== pane.path
+        if (reply.note) app.listOutside(reply.note)
         pane.path = target
         pane.body = reply.body
         pane.ownTags = reply.tags
@@ -101,8 +103,38 @@ QtObject {
     })
   }
 
+  // An outside file's edits, written to it.
+  function writeFile(done) {
+    if (!pane.isOutside) { if (done) done(); return }
+    var target = pane.path
+    save(function() {
+      app.call("write", { path: target }, function(reply) {
+        if (reply.error) { app.showStatus("Could not save: " + reply.error, true); return }
+        app.listOutside(reply.note)
+        app.showStatus("Saved " + reply.note.file.split("/").pop(), false)
+        if (done) done()
+      })
+    })
+  }
+
+  // An outside file made a note, with these edits, opened in its place.
+  function bringIn() {
+    var target = pane.path
+    save(function() {
+      app.call("bringIn", { path: target }, function(reply) {
+        if (reply.error) { app.showStatus("Could not import: " + reply.error, true); return }
+        app.forgetOutside(target)
+        app.reload(function() {
+          app.showStatus("Imported as a note; the file is left where it was", false)
+          app.panes.forEach(function(p) { if (p.path === target) p.open(reply.path) })
+        })
+      })
+    })
+  }
+
   function rename(title) {
     title = title.trim()
+    if (pane.isOutside) return
     if (!pane.note || !title || title === pane.note.title) return
     save(function() {
       var from = pane.path

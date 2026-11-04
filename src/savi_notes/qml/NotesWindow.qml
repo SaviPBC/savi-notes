@@ -20,6 +20,8 @@ Window {
   // only when there are departments. Each is listed in byPath too, so panes open them.
   property var articles: []
   property var departments: []
+  // Markdown files opened from outside the vault, by "file:PATH"; in byPath too, never in notes.
+  property var outside: ({})
   property var byTitle: ({})
   property var tagCounts: []
   property var activeTags: []
@@ -57,7 +59,7 @@ Window {
   property bool statusError: false
   property bool quitting: false
 
-  title: (current ? current.title + (dirty ? " •" : "") + " · " : "") + (App.dev ? "Notes (dev)" : "Notes")
+  title: (current ? current.title + (dirty || current.unsaved ? " •" : "") + " · " : "") + (App.dev ? "Notes (dev)" : "Notes")
   color: Qt.rgba(Colors.background.r, Colors.background.g, Colors.background.b, 1)
   width: 1180
   height: 760
@@ -95,12 +97,22 @@ Window {
     window.quit()
   }
 
-  // Save what is pending, then let the engine finish its last sync.
-  function quit() {
+  // Save what is pending, then let the engine finish its last sync. Edits to an outside
+  // file are the person's to keep or not, so they're asked first.
+  function quit(discard) {
     if (window.quitting) return
-    window.quitting = true
-    window.visible = false
-    saveAll(function() { engine.close(); quitTimer.start() })
+    saveAll(function() {
+      if (!discard && unsavedFiles().length) {
+        closeDialog.selectedIndex = 1
+        closeDialog.opened = true
+        content.forceActiveFocus()
+        return
+      }
+      window.quitting = true
+      window.visible = false
+      engine.close()
+      quitTimer.start()
+    })
   }
 
   Timer { id: quitTimer; interval: 4000; onTriggered: Qt.quit() }
@@ -265,6 +277,7 @@ Window {
         n.tags.forEach(function(t) { counts[t] = (counts[t] || 0) + 1 })
       })
       window.articles.forEach(function(a) { paths[a.path] = window.articleEntry(a) })
+      for (var file in window.outside) paths[file] = window.outside[file]
       window.notes = reply.notes
       window.byPath = paths
       window.byTitle = titles
@@ -280,6 +293,7 @@ Window {
 
   function updateListing(note) {
     if (!note) return
+    if (note.outside) { listOutside(note); return }
     var paths = Object.assign({}, window.byPath)
     var old = paths[note.path]
     note.backlinks = old ? old.backlinks : []
@@ -390,6 +404,40 @@ Window {
     })
   }
 
+  function listOutside(note) {
+    var files = Object.assign({}, window.outside), paths = Object.assign({}, window.byPath)
+    files[note.path] = paths[note.path] = note
+    window.outside = files
+    window.byPath = paths
+  }
+
+  function forgetOutside(path) {
+    var files = Object.assign({}, window.outside)
+    delete files[path]
+    window.outside = files
+  }
+
+  function unsavedFiles() {
+    return Object.keys(window.outside).filter(function(p) { return window.outside[p].unsaved })
+  }
+
+  // Ctrl+S: the panes' edits, and outside files' edits written to them.
+  function saveEverything() {
+    saveAll(function() {
+      var files = unsavedFiles()
+      var next = function() {
+        if (!files.length) return
+        engine.call("write", { path: files.shift() }, function(reply) {
+          if (reply.error) { showStatus("Could not save: " + reply.error, true); return }
+          listOutside(reply.note)
+          showStatus("Saved " + reply.note.file.split("/").pop(), false)
+          next()
+        })
+      }
+      next()
+    })
+  }
+
   // ---------------------------------------------------------------- notes
 
   function openNote(path, done) {
@@ -419,6 +467,7 @@ Window {
   }
 
   function openNamed(name, pane) {
+    if (name.indexOf("file:") === 0) { (pane || window.activePane).open(name); return }
     var path = window.byPath[name] ? name : window.byTitle[name.replace(/\.md$/, "").toLowerCase()]
     if (path) (pane || window.activePane).open(path)
     else createNote(name.replace(/\.md$/, ""), [])
@@ -589,22 +638,27 @@ Window {
 
   property var exporting: null
 
+  // A local file's title keeps its extension; the exported file gets its own.
+  function exportName() {
+    return window.current.outside ? window.current.title.replace(/\.[^.]*$/, "") : window.current.title
+  }
+
   function exportPdf() {
     if (!window.current) return
     window.exporting = window.activePane
     pdfDialog.currentFolder = Util.fileUrl(App.documents)
-    pdfDialog.selectedFile = Util.fileUrl(App.documents + "/" + window.current.title + ".pdf")
+    pdfDialog.selectedFile = Util.fileUrl(App.documents + "/" + exportName() + ".pdf")
     pdfDialog.open()
-    App.fillFileName(window.current.title + ".pdf")
+    App.fillFileName(exportName() + ".pdf")
   }
 
   function exportMarkdown() {
     if (!window.current) return
     window.exporting = window.activePane
     mdDialog.currentFolder = Util.fileUrl(App.documents)
-    mdDialog.selectedFile = Util.fileUrl(App.documents + "/" + window.current.title + ".md")
+    mdDialog.selectedFile = Util.fileUrl(App.documents + "/" + exportName() + ".md")
     mdDialog.open()
-    App.fillFileName(window.current.title + ".md")
+    App.fillFileName(exportName() + ".md")
   }
 
   function importNotes() {
@@ -712,7 +766,7 @@ Window {
     else if (event.key === Qt.Key_D) window.todaysNote()
     else if (shift && event.key === Qt.Key_E) window.exportPdf()
     else if (event.key === Qt.Key_E) { if (activeView) activeView.toggleEditing() }
-    else if (event.key === Qt.Key_S) window.saveAll()
+    else if (event.key === Qt.Key_S) window.saveEverything()
     else if (event.key === Qt.Key_W || event.key === Qt.Key_Q) window.quit()
     else return false
     return true
@@ -729,6 +783,7 @@ Window {
       if (deleteDialog.opened) { event.accepted = deleteDialog.handleKey(event); return }
       if (signOutDialog.opened) { event.accepted = signOutDialog.handleKey(event); return }
       if (updateDialog.opened) { event.accepted = updateDialog.handleKey(event); return }
+      if (closeDialog.opened) { event.accepted = closeDialog.handleKey(event); return }
       event.accepted = window.shortcut(event)
     }
 
@@ -779,6 +834,34 @@ Window {
       confirmText: "Sign out"
       onCanceled: { opened = false; window.restoreFocus() }
       onConfirmed: { opened = false; window.signOut() }
+    }
+
+    ConfirmDialog {
+      id: closeDialog
+      anchors.fill: parent
+      z: 2000
+      readonly property var files: opened ? window.unsavedFiles().map(function(p) { return window.outside[p].file.split("/").pop() }) : []
+      message: "Save your edits to " + (files.length > 1 ? files.slice(0, -1).join(", ") + " and " + files[files.length - 1] : files[0]) + " before closing?"
+      cancelText: "Don't save"
+      confirmText: "Save"
+      destructive: false
+      // Escape or a click beside it goes back to the window, keeping the edits.
+      dismissCancels: false
+      onDismissed: { opened = false; window.restoreFocus() }
+      onCanceled: { opened = false; window.quit(true) }
+      onConfirmed: {
+        opened = false
+        var files = window.unsavedFiles()
+        var next = function() {
+          if (!files.length) { window.quit(true); return }
+          engine.call("write", { path: files.shift() }, function(reply) {
+            if (reply.error) { showStatus("Could not save: " + reply.error, true); return }
+            listOutside(reply.note)
+            next()
+          })
+        }
+        next()
+      }
     }
 
     Onboarding {

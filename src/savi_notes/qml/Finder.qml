@@ -22,9 +22,13 @@ Item {
     .concat([{ id: "settings", label: "Settings" }])
   readonly property bool onArticle: !!app.current && !!app.current.article
   readonly property bool readOnly: onArticle && !app.current.editable
-  readonly property var fileActions: (onArticle ? [] : [
+  readonly property bool onOutside: !!app.current && !!app.current.outside
+  readonly property var fileActions: (onOutside ? [
+    { label: "Save to file", glyph: 0xf0193, hint: Style.ctrl + "+S", run: function() { app.activePane.writeFile() } },
+    { label: "Import into Savi Notes", glyph: 0xf02fa, hint: "The file stays where it is", run: function() { app.activePane.bringIn() } }
+  ] : onArticle ? [] : [
     { label: "Add tag", glyph: 0xf0722, run: function() { app.addTagFromFinder() } }
-  ]).concat(readOnly ? [] : [
+  ]).concat(readOnly || onOutside ? [] : [
     { label: "Rename", glyph: 0xf0455, run: function() { app.renameFromFinder() } }
   ]).concat([
     { label: "Open note split right", glyph: 0xf0bcc, run: function() { app.openSplit("right") } },
@@ -32,7 +36,7 @@ Item {
   ].concat(app.panes.length > 1 ? [{ label: "Close split", glyph: 0xf0158, run: function() { app.closePane(app.activePane) } }] : []).concat([
     { label: "Export as PDF", glyph: 0xf0226, hint: Style.ctrl + "+Shift+E", run: function() { app.exportPdf() } },
     { label: "Export as Markdown", glyph: 0xf0354, run: function() { app.exportMarkdown() } },
-  ]).concat(readOnly ? [] : [
+  ]).concat(readOnly || onOutside ? [] : [
     { label: onArticle ? "Delete article" : "Delete note", glyph: 0xf09e7, danger: true, run: function() { app.confirmDelete() } }
   ]))
   // Settings rows stay open after Enter, so the new value shows.

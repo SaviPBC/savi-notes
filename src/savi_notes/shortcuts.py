@@ -59,6 +59,7 @@ def linux():
   with open(path, "w", encoding="utf-8") as f:
     f.write("[Desktop Entry]\nType=Application\nName=%s\nComment=Markdown notes with tags and search\n"
             "Exec=%s %%u\nIcon=%s\nTerminal=false\nCategories=Office;TextEditor;\nStartupWMClass=savi-notes\n"
+            "MimeType=text/markdown;text/x-markdown;\n"
             % (name, command, icon or os.path.join(HERE, "icon.svg")))
   return "It's in your app launcher as %s." % name
 
@@ -103,6 +104,7 @@ def windows():
   os.makedirs(start_menu, exist_ok=True)
   link = os.path.join(start_menu, "Savi Notes.lnk")
   icon = os.path.join(HERE, "icon.ico")
+  open_with(icon)
   # Written again once the installed app is newer than it, so an update reaches it.
   if os.path.exists(link) and os.path.getmtime(link) >= os.path.getmtime(icon):
     return "It's in the Start Menu as Savi Notes."
@@ -114,3 +116,16 @@ def windows():
   subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", script], check=True, capture_output=True,
                  creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
   return "It's in the Start Menu as Savi Notes."
+
+
+def open_with(icon):
+  """Savi Notes in Explorer's Open with list for .md files, without taking them over."""
+  import winreg
+  classes = r"Software\Classes"
+  with winreg.CreateKey(winreg.HKEY_CURRENT_USER, classes + r"\SaviNotes.Markdown") as key:
+    winreg.SetValue(key, "", winreg.REG_SZ, "Markdown file")
+    winreg.SetValue(key, "DefaultIcon", winreg.REG_SZ, icon)
+    winreg.SetValue(key, r"shell\open\command", winreg.REG_SZ, '"%s" "%%1"' % launcher(gui=True))
+  for ext in (".md", ".markdown"):
+    with winreg.CreateKey(winreg.HKEY_CURRENT_USER, classes + "\\" + ext + r"\OpenWithProgids") as key:
+      winreg.SetValueEx(key, "SaviNotes.Markdown", 0, winreg.REG_NONE, b"")

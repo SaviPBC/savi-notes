@@ -120,13 +120,16 @@ Rectangle {
     onActivated: bar.openInsert()
   }
 
-  // Edits save as you type; this saves now and goes back to reading.
+  // Edits save as you type; this saves now and goes back to reading. An outside file's
+  // edits are written to it here, where Esc keeps them a draft.
   ToolbarButton {
     id: saveButton
+    readonly property bool unsaved: view.pane.dirty || view.outside && view.note.unsaved
     x: bar.contentX + bar.contentWidth - width + Style.space(8)
     anchors.verticalCenter: parent.verticalCenter
-    glyph: view.pane.dirty ? 0xf0193 : 0xf0818
-    tip: (view.pane.dirty ? "Save and read" : "Saved; back to reading") + "  Esc"
+    glyph: unsaved ? 0xf0193 : 0xf0818
+    tip: view.outside ? (unsaved ? "Save to the file and read" : "Saved; back to reading")
+      : (unsaved ? "Save and read" : "Saved; back to reading") + "  Esc"
     onActivated: view.saveAndRead()
   }
 }

@@ -46,4 +46,10 @@ with open(os.path.join(config.vault_dir(), "Boot test.md"), "w", encoding="utf-8
 account.save({"gateway": cfg["gateway"], "access": "token", "refresh": "", "expires": time.time() + 3600,
               "email": "boot@bysavi.com", "key": base64.b64encode(crypto.new_key()).decode()})
 boot("Boot test")
+
+# A markdown file from outside the vault, as Open With hands it over.
+outside = os.path.join(os.path.dirname(config.vault_dir()), "Elsewhere.md")
+with open(outside, "w", encoding="utf-8") as f:
+  f.write("# Elsewhere\n\nOpened from a file manager, linking [[Boot test]].\n")
+boot(outside)
 print("boot ok")
