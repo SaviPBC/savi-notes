@@ -1163,7 +1163,9 @@ class Engine:
     if op == "read":
       return self.outside.read(path)
     if op == "save":
-      return {"note": self.outside.save(path, req["body"]) if req.get("body") is not None else self.outside.entry(path)}
+      if req.get("body") is None:
+        return {"note": self.outside.entry(path)}
+      return {"note": self.outside.save(path, req["body"]), "embeds": self.vault.embeds(req["body"], os.path.dirname(path))}
     if op == "write":
       return {"note": self.outside.write(path)}
     if op == "bringIn":
@@ -1201,7 +1203,12 @@ class Engine:
     if op == "save":
       v.save(req["path"], req.get("body"), req.get("tags"))
       self.edited()
-      return {"note": next((n for n in v.listing() if n["path"] == req["path"]), None)}
+      reply = {"note": next((n for n in v.listing() if n["path"] == req["path"]), None)}
+      # An image added while editing has to reach the pane, which otherwise knows only
+      # the embeds of the text it opened.
+      if req.get("body") is not None:
+        reply["embeds"] = v.embeds(req["body"])
+      return reply
     if op == "create":
       path = v.create(req.get("title") or "Untitled", req.get("tags"), req.get("body"))
       self.edited()
@@ -1233,7 +1240,12 @@ class Engine:
     if op == "untag":
       v.untag(req["path"], req["tag"])
       self.edited()
-      return {"note": next((n for n in v.listing() if n["path"] == req["path"]), None)}
+      reply = {"note": next((n for n in v.listing() if n["path"] == req["path"]), None)}
+      # An image added while editing has to reach the pane, which otherwise knows only
+      # the embeds of the text it opened.
+      if req.get("body") is not None:
+        reply["embeds"] = v.embeds(req["body"])
+      return reply
     if op == "resolve":
       return {"path": v.by_title(req["title"]) or ""}
     if op == "assets":

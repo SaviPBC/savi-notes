@@ -73,6 +73,10 @@ QtObject {
     app.call("save", { path: target, body: text }, function(reply) {
       if (reply.error) { app.showStatus("Could not save: " + reply.error, true); return }
       if (target === pane.path && text === pane.body) pane.dirty = false
+      if (target === pane.path && reply.embeds && JSON.stringify(reply.embeds) !== JSON.stringify(pane.embeds)) {
+        pane.embeds = reply.embeds
+        if (pane.view) pane.view.render()
+      }
       app.noteSaved(reply.note, pane)
       if (done) done()
     })
